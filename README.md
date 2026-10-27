@@ -17,18 +17,18 @@
 
 | 包 | 名称 | 玩法要点 | 真机验收 |
 |---|---|---|---|
-| `dsh-game-2048` | 2048 | 经典数字合并 | ✅ 已装并验收 |
-| `dsh-game-minesweeper` | 扫雷 | 经典扫雷、首击保护 | ⏳ 待安装 |
-| `dsh-game-quoridor` | 墙棋 | Quoridor 规则 + AI | ⏳ 待安装 |
-| `dsh-game-complexweeper` | 复扫雷 | Zig 原版规则移植（GPL-3.0），带独立规则引擎 | ⏳ 待安装 |
-| `dsh-game-tetris` | 俄罗斯方块 | 10×20、SRS 旋转、消行计分 | ⏳ 待安装 |
-| `dsh-game-solitaire` | 接龙 | Klondike 单机接龙 | ⏳ 待安装 |
-| `dsh-game-sudoku` | 数独 | 多难度出题、笔记模式 | ⏳ 待安装 |
-| `dsh-game-battleship` | 海战棋 | 10×10、5 艘、AI 三档 | ⏳ 待安装 |
-| `dsh-game-klotski` | 华容道 | 4 关，BFS 复算最短解 | ⏳ 待安装 |
-| `dsh-game-gomoku` | 五子棋 | 15×15、AI 对弈 | ⏳ 待安装 |
+| `dsh-game-2048` | 2048 | 经典数字合并 | ✅ 已验收 |
+| `dsh-game-minesweeper` | 扫雷 | 经典扫雷、首击保护 | ✅ 已验收 |
+| `dsh-game-quoridor` | 墙棋 | Quoridor 规则 + AI | ✅ 已验收 |
+| `dsh-game-complexweeper` | 复扫雷 | Zig 原版规则移植（GPL-3.0），带独立规则引擎 | ✅ 已验收 |
+| `dsh-game-tetris` | 俄罗斯方块 | 10×20、SRS 旋转、消行计分 | ✅ 已验收 |
+| `dsh-game-solitaire` | 接龙 | Klondike 单机接龙 | ✅ 已验收 |
+| `dsh-game-sudoku` | 数独 | 多难度出题、笔记模式 | ✅ 已验收 |
+| `dsh-game-battleship` | 海战棋 | 10×10、5 艘、AI 三档 | ✅ 已验收 |
+| `dsh-game-klotski` | 华容道 | 4 关，BFS 复算最短解 | ✅ 已验收 |
+| `dsh-game-gomoku` | 五子棋 | 15×15、AI 对弈 | ✅ 已验收 |
 
-「待安装」= 实现 + 逻辑单测 + 无头生命周期测试 + 真实 Chromium 交互自检 + 独立审计均已通过，但还没在真机宿主里跑过。
+10 款游戏均已在本机 DSH 客户端里安装并实测通过（2026-10-27）：目录可见、进舞台可玩、切页后进度恢复、控制台无报错。每个包另有一组离线自测（逻辑单测 / 无头生命周期 / 真实 Chromium 交互 / 独立审计），跑法见各包 README 的「自测」一节。
 
 ## 安装
 

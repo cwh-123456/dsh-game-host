@@ -13,3 +13,6 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# 项目内部数据（DSH 工作区记忆）
+.workbuddy/
