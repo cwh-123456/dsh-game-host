@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Complexweeper",
+    "description": "Complexweeper: mines are complex numbers (+1 / -1 / +i / -i) and each clue is the modulus of the neighbouring sum. Chords require the flag count and real/imaginary ratio to match. Three difficulties, four flag types, autosave."
+  }
+}

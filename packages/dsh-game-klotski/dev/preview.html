@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>华容道 Klotski — dev preview</title>
+    <style>
+      :root {
+        --dsw-alias-bg-base: #ffffff;
+        --dsw-alias-label-primary: #1f2328;
+        --dsw-alias-label-secondary: #57606a;
+        --dsw-alias-border-l1: #d0d7de;
+        color-scheme: light;
+      }
+      html[data-theme='dark'] {
+        --dsw-alias-bg-base: #1b1f24;
+        --dsw-alias-label-primary: #e6edf3;
+        --dsw-alias-label-secondary: #9aa7b4;
+        --dsw-alias-border-l1: #30363d;
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--dsw-alias-bg-base);
+        color: var(--dsw-alias-label-primary);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      }
+      #host {
+        position: absolute;
+        inset: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="host"></div>
+
+    <script>
+      // Minimal stand-in for the DSH web module loader used by the real host.
+      window.__PREVIEW__ = { component: null, module: null, definition: null, errors: [] }
+
+      window.__DSH_GAME_KLOTSKI_TEST__ = true // allows inspection via the seam too
+      window.__ModuleLoader__ = {
+        load(definition) {
+          window.__PREVIEW__.definition = definition
+        },
+      }
+      window.addEventListener('error', (event) => {
+        window.__PREVIEW__.errors.push(String((event && event.message) || event))
+      })
+      window.addEventListener('unhandledrejection', (event) => {
+        window.__PREVIEW__.errors.push('unhandledrejection: ' + String(event && event.reason))
+      })
+    </script>
+    <script src="./fake-react.js"></script>
+    <script src="../client.js"></script>
+    <script>
+      ;(function () {
+        const preview = window.__PREVIEW__
+        const definition = preview.definition
+        if (!definition) throw new Error('client.js did not register a module-loader definition')
+
+        const module = definition.factory(function require(name) {
+          if (name === 'react') return window.FakeReact
+          throw new Error('unexpected require: ' + name)
+        })
+        preview.module = module
+
+        const registrations = []
+        const ctx = {
+          slots: {
+            inject(name, callback) {
+              registrations.push({ kind: 'inject', name })
+              return callback()
+            },
+            register(config, component) {
+              registrations.push({ kind: 'register', config })
+              preview.component = component
+              return { config, component }
+            },
+          },
+        }
+        module.apply(ctx)
+        preview.registrations = registrations
+
+        const theme = new URLSearchParams(location.search).get('theme')
+        if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
+        if (theme === 'light') document.documentElement.removeAttribute('data-theme')
+
+        const host = document.getElementById('host')
+        window.FakeReact.render(window.FakeReact.createElement(preview.component), host)
+
+        preview.getGame = function () {
+          const wrapper = host.firstElementChild
+          return (wrapper && wrapper.__dshKlotskiGame) || host.__dshKlotskiGame || null
+        }
+        preview.host = host
+        preview.ready = true
+      })()
+    </script>
+  </body>
+</html>

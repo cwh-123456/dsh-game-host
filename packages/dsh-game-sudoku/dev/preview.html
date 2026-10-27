@@ -1,0 +1,1127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>数独 Sudoku · DSH 游戏包 dev 预览（非宿主验收）</title>
+<style>
+  :root {
+    color-scheme: light;
+    --dsw-alias-bg-base: #ffffff;
+    --dsw-alias-bg-layer-1: #f7f8fa;
+    --dsw-alias-bg-layer-2: #f1f3f5;
+    --dsw-alias-label-primary: #1f2328;
+    --dsw-alias-label-secondary: #57606a;
+    --dsw-alias-label-tertiary: #8b949e;
+    --dsw-alias-border-l1: #d0d7de;
+    --dsw-alias-border-l2: #b6bec8;
+    --dsw-alias-brand-primary: #2f81f7;
+    --dsw-alias-interactive-bg-hover: #eceff2;
+    --dsw-alias-interactive-bg-active: #dfe4e9;
+    --dsw-alias-bg-mask-1: rgba(9, 12, 16, 0.38);
+    --dsw-elevation-panel: 0 8px 24px rgba(0, 0, 0, 0.18);
+    --page-bg: #e9ecf0;
+    --page-fg: #1f2328;
+    --page-card: #ffffff;
+    --page-line: #d5dbe2;
+  }
+  body[data-theme="dark"] {
+    color-scheme: dark;
+    --dsw-alias-bg-base: #17191c;
+    --dsw-alias-bg-layer-1: #1c1f24;
+    --dsw-alias-bg-layer-2: #21262d;
+    --dsw-alias-label-primary: #e6edf3;
+    --dsw-alias-label-secondary: #a7b0ba;
+    --dsw-alias-label-tertiary: #7d8590;
+    --dsw-alias-border-l1: #30363d;
+    --dsw-alias-border-l2: #414a55;
+    --dsw-alias-brand-primary: #4b8ef7;
+    --dsw-alias-interactive-bg-hover: #2a313a;
+    --dsw-alias-interactive-bg-active: #333c47;
+    --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.55);
+    --dsw-elevation-panel: 0 12px 40px rgba(0, 0, 0, 0.5);
+    --page-bg: #101216;
+    --page-fg: #e6edf3;
+    --page-card: #1b1e23;
+    --page-line: #2b3139;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    padding: 18px;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font: 14px/1.55 "Segoe UI", system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+  }
+  .layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; max-width: 1560px; margin: 0 auto; }
+  .preview-col { display: flex; flex-direction: column; gap: 10px; }
+  .stage-label { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 12px; opacity: 0.75; }
+  .stage-label b { font-size: 13px; opacity: 1; }
+  .stage {
+    position: relative;
+    width: 720px;
+    height: 600px;
+    background: var(--dsw-alias-bg-base);
+    border: 1px solid var(--page-line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.18);
+  }
+  #game-root { width: 100%; height: 100%; }
+  .side { flex: 1 1 360px; min-width: 330px; max-width: 560px; display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  h1 small { font-size: 12px; font-weight: 400; opacity: 0.65; margin-left: 6px; }
+  .card {
+    border: 1px solid var(--page-line);
+    border-radius: 10px;
+    background: var(--page-card);
+    padding: 11px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .card h2 { margin: 0; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.65; font-weight: 600; }
+  .row { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+  button {
+    font: inherit;
+    font-size: 12.5px;
+    padding: 6px 11px;
+    border-radius: 7px;
+    border: 1px solid var(--page-line);
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--page-fg);
+    cursor: pointer;
+  }
+  button:hover { background: var(--dsw-alias-interactive-bg-active); }
+  button[aria-pressed="true"] { border-color: var(--dsw-alias-brand-primary); box-shadow: inset 0 0 0 1px var(--dsw-alias-brand-primary); }
+  .line { font-size: 12.5px; opacity: 0.85; word-break: break-word; }
+  .line b { font-variant-numeric: tabular-nums; }
+  .ok { color: #1a7f37; }
+  body[data-theme="dark"] .ok { color: #4ac26b; }
+  .bad { color: #cf222e; }
+  body[data-theme="dark"] .bad { color: #ff7b72; }
+  ul.checklist { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.55; max-height: 260px; overflow: auto; }
+  ul.checklist li { margin: 1px 0; }
+  pre {
+    margin: 0;
+    padding: 9px 10px;
+    min-height: 36px;
+    max-height: 180px;
+    overflow: auto;
+    border-radius: 7px;
+    background: var(--dsw-alias-bg-layer-2);
+    border: 1px solid var(--page-line);
+    color: var(--dsw-alias-label-secondary);
+    font-size: 11.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .hint { font-size: 11.5px; line-height: 1.65; opacity: 0.7; }
+  .err-count { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--page-line); font-size: 11px; opacity: 0.9; }
+  #sandbox { position: absolute; left: -9999px; top: 0; width: 320px; height: 200px; overflow: hidden; }
+</style>
+</head>
+<body data-theme="light">
+
+<div class="layout">
+  <div class="preview-col">
+    <div class="stage-label">
+      <b>游戏舞台（假宿主）</b>
+      <span id="stage-size-label">720 × 600</span>
+      <span>· dev 预览，不是宿主内验收</span>
+    </div>
+    <div id="stage" class="stage"><div id="game-root"></div></div>
+    <p class="hint" style="margin:0;">
+      舞台尺寸切换会触发 client.js 的 ResizeObserver；主题切换只换 CSS token。
+      键盘事件通过根节点冒泡，不依赖全局监听。
+    </p>
+  </div>
+
+  <div class="side">
+    <h1>数独 Sudoku <small>dev preview</small></h1>
+
+    <div class="card">
+      <h2>页面控制</h2>
+      <div class="row">
+        <button id="theme-toggle" aria-pressed="false">切换主题：亮色</button>
+        <button id="remount">重挂组件（存档恢复）</button>
+        <button id="clear-save">清空存档 + 重挂</button>
+      </div>
+      <div class="row" id="size-row">
+        <button data-w="300" data-h="200" aria-pressed="false">300×200（太小）</button>
+        <button data-w="360" data-h="520" aria-pressed="false">360×520</button>
+        <button data-w="720" data-h="600" aria-pressed="true">720×600</button>
+        <button data-w="1100" data-h="700" aria-pressed="false">1100×700</button>
+      </div>
+      <div class="line" id="live-status">等待 client.js…</div>
+    </div>
+
+    <div class="card">
+      <h2>fake-react 自检（harness 自身）</h2>
+      <div class="line" id="selftest-summary">未运行</div>
+      <ul class="checklist" id="selftest-list"></ul>
+      <div id="sandbox"></div>
+    </div>
+
+    <div class="card">
+      <h2>client.js 注册 / seam 校验</h2>
+      <div class="line" id="boot-status">未加载</div>
+      <ul class="checklist" id="boot-checks"></ul>
+    </div>
+
+    <div class="card">
+      <h2>window error / unhandledrejection / console.error</h2>
+      <div class="row">
+        <span>window error：<span id="err-count" class="err-count">0</span></span>
+        <span>rejection：<span id="rej-count" class="err-count">0</span></span>
+        <span>console.error：<span id="console-err-count" class="err-count">0</span></span>
+      </div>
+      <pre id="err-detail">（无）</pre>
+      <div class="hint">冒烟验收要求三项计数全为 0；加载失败信息也会出现在这里。</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.__DSH_GAME_SUDOKU_TEST__ = true
+  window.__ModuleLoader__ = {
+    load: function (definition) { window.__gameDefinition = definition },
+  }
+  window.__errors = []
+  window.__rejections = []
+  window.__consoleErrors = []
+
+  function recordError(kind, message, extra) {
+    var entry = { kind: kind, message: String(message), at: Date.now() }
+    if (extra) entry.extra = extra
+    if (kind === 'console.error') window.__consoleErrors.push(entry)
+    else if (kind === 'unhandledrejection') window.__rejections.push(entry)
+    else window.__errors.push(entry)
+  }
+  window.__recordPreviewError = recordError
+
+  window.addEventListener('error', function (event) {
+    var target = event.target
+    var detail = ''
+    if (target && target !== window && target.tagName) {
+      detail = '<' + String(target.tagName).toLowerCase() + '> ' + (target.src || target.href || '')
+    }
+    recordError('error', event.message || (detail || 'resource load error'), {
+      filename: event.filename || '',
+      lineno: event.lineno || 0,
+      stack: event.error && event.error.stack ? String(event.error.stack) : '',
+      detail: detail,
+    })
+  }, true)
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event.reason
+    recordError('unhandledrejection', reason && reason.message ? reason.message : String(reason), {
+      stack: reason && reason.stack ? String(reason.stack) : '',
+    })
+  })
+
+  var nativeConsoleError = console.error.bind(console)
+  console.error = function () {
+    var parts = []
+    for (var i = 0; i < arguments.length; i += 1) parts.push(String(arguments[i]))
+    recordError('console.error', parts.join(' '))
+    nativeConsoleError.apply(console, arguments)
+  }
+</script>
+<script src="fake-react.js"></script>
+<script>
+  window.__clientScriptError = null
+</script>
+<script src="../client.js"
+        onerror="window.__clientScriptError = 'client.js 加载失败（文件不存在或不可读）'; window.__recordPreviewError('error', window.__clientScriptError)"></script>
+
+<script>
+(function () {
+  'use strict'
+
+  var TEXT = { ok: '✓', bad: '✗' }
+  var $ = function (id) { return document.getElementById(id) }
+  function append(parent, tag, cls, text) {
+    var node = document.createElement(tag)
+    if (cls) node.className = cls
+    if (text !== undefined) node.textContent = text
+    parent.appendChild(node)
+    return node
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild) }
+  function labelOf(node) { return (node.textContent || '').replace(/\s+/g, ' ').trim() }
+
+  /* ================================================================== *
+   * 一、fake-react 轻量自检（harness 自身）
+   * ================================================================== */
+
+  function runFakeReactSelfTest() {
+    var R = window.FakeReact
+    var summary = $('selftest-summary')
+    var list = $('selftest-list')
+    clear(list)
+    if (!R) {
+      summary.textContent = 'fake-react.js 未加载（无法运行）'
+      summary.className = 'line bad'
+      return { passed: 0, failed: 1 }
+    }
+    var results = []
+    var effectLog = []
+    var caught = false
+    function check(name, fn) {
+      try { fn(); results.push({ ok: true, name: name }) }
+      catch (error) { results.push({ ok: false, name: name, error: error }) }
+    }
+    function assert(condition, message) { if (!condition) throw new Error(message || 'assertion failed') }
+    function assertEqual(actual, expected, message) {
+      if (actual !== expected) throw new Error((message || 'not equal') + '：期望 ' + JSON.stringify(expected) + '，实际 ' + JSON.stringify(actual))
+    }
+    function byId(id) { var node = document.getElementById(id); assert(node, '找不到 #' + id); return node }
+    function textOf(id) { return byId(id).textContent }
+
+    function Demo() {
+      var pair = R.useState(0)
+      var count = pair[0]
+      var setCount = pair[1]
+      R.useEffect(function () { effectLog.push('effect'); return function () { effectLog.push('cleanup') } }, [])
+      var inc = R.useCallback(function () { setCount(function (v) { return v + 1 }) }, [])
+      return R.createElement('div', { id: 'sd-root' },
+        R.createElement('button', { id: 'sd-inc', onClick: inc }, 'inc'),
+        R.createElement('span', { id: 'sd-count' }, String(count)),
+        R.createElement('span', { id: 'sd-style', style: { width: 40, lineHeight: 2, opacity: 0.5 } }, 'style'))
+    }
+    function Boundary() {
+      return class Boundary extends R.Component {
+        constructor(props) { super(props); this.state = { failed: false } }
+        static getDerivedStateFromError() { return { failed: true } }
+        componentDidCatch() { caught = true }
+        render() { return this.state.failed ? R.createElement('div', { id: 'bd-fallback' }, 'fallback') : this.props.children }
+      }
+    }
+    function Bomb() { throw new Error('self-test bomb') }
+
+    var host = document.createElement('div')
+    $('sandbox').appendChild(host)
+    try {
+      R.render(R.createElement(Demo, null), host)
+      check('hooks + onClick 重渲染', function () {
+        assertEqual(textOf('sd-count'), '0')
+        byId('sd-inc').click()
+        assertEqual(textOf('sd-count'), '1')
+      })
+      check('style 对象 → CSS', function () {
+        assertEqual(byId('sd-style').style.width, '40px')
+        assertEqual(byId('sd-style').style.lineHeight, '2')
+      })
+      check('useEffect 挂载执行', function () { assert(effectLog.indexOf('effect') >= 0) })
+      check('卸载 cleanup + DOM 移除', function () {
+        R.unmountComponentAtNode(host)
+        assert(effectLog.indexOf('cleanup') >= 0)
+        assert(!document.getElementById('sd-root'))
+      })
+      var boundaryHost = document.createElement('div')
+      $('sandbox').appendChild(boundaryHost)
+      var BoundaryClass = Boundary()
+      R.render(R.createElement(BoundaryClass, null, R.createElement(Bomb, null)), boundaryHost)
+      check('错误边界', function () { assert(document.getElementById('bd-fallback')); assert(caught) })
+      R.unmountComponentAtNode(boundaryHost)
+      boundaryHost.remove()
+    } catch (error) {
+      check('Demo 渲染流程', function () { throw error })
+    }
+    var passed = results.filter(function (r) { return r.ok }).length
+    var failed = results.length - passed
+    clear(list)
+    results.forEach(function (item) {
+      var li = append(list, 'li', item.ok ? 'ok' : 'bad')
+      li.textContent = (item.ok ? TEXT.ok : TEXT.bad) + ' ' + item.name + (item.ok ? '' : '：' + item.error.message)
+    })
+    summary.className = 'line ' + (failed ? 'bad' : 'ok')
+    summary.textContent = 'fake-react 自检：' + passed + '/' + results.length + ' 通过' + (failed ? '（' + failed + ' 失败）' : '')
+    return { passed: passed, failed: failed }
+  }
+
+  /* ================================================================== *
+   * 二、假宿主加载 client.js
+   * ================================================================== */
+
+  var gameRoot = $('game-root')
+  var stage = $('stage')
+  var registered = null
+  var R = window.FakeReact
+
+  function setBootLine(text, cls) {
+    var node = $('boot-status')
+    node.textContent = text
+    node.className = 'line' + (cls ? ' ' + cls : '')
+  }
+  function addBootCheck(text, ok) {
+    var list = $('boot-checks')
+    var li = append(list, 'li', ok ? 'ok' : 'bad')
+    li.textContent = (ok ? TEXT.ok : TEXT.bad) + ' ' + text
+    return ok
+  }
+
+  function bootClient() {
+    var def = window.__gameDefinition
+    clear($('boot-checks'))
+    if (!def) {
+      setBootLine(window.__clientScriptError || 'client.js 未就绪：window.__gameDefinition 不存在（文件不存在 / 尚未完成 / 加载顺序错误）', 'bad')
+      return false
+    }
+    if (!R) { setBootLine('fake-react.js 未加载', 'bad'); return false }
+    try {
+      addBootCheck('__ModuleLoader__.load 收到 definition', true)
+      addBootCheck('definition.id === "@local/dsh-game-sudoku"', def.id === '@local/dsh-game-sudoku')
+      addBootCheck('definition.factory 是函数', typeof def.factory === 'function')
+      var requireShim = function (name) {
+        if (name === 'react') return R
+        throw new Error('预览页没有模块：' + name)
+      }
+      var module = def.factory(requireShim)
+      addBootCheck('factory 返回 { inject, apply }', !!module && Array.isArray(module.inject) && typeof module.apply === 'function')
+      addBootCheck('inject 只声明 slots', Array.isArray(module.inject) && module.inject.length === 1 && module.inject[0] === 'slots')
+
+      var ctx = {
+        slots: {
+          inject: function (name, callback) { window.__injectedName = name; callback() },
+          register: function (entry, Component) {
+            registered = { entry: entry, Component: Component }
+            window.__registered = registered
+            return function unregister() {}
+          },
+        },
+      }
+      module.apply(ctx)
+      addBootCheck('slots.inject("game.stage") → register', !!registered && window.__injectedName === 'game.stage')
+      if (!registered) { setBootLine('apply() 没有注册 game.stage', 'bad'); return false }
+
+      var entry = registered.entry
+      addBootCheck('entry.name === "game.stage" / id === "sudoku"', entry.name === 'game.stage' && entry.id === 'sudoku')
+      addBootCheck('entry.label() === "数独"', typeof entry.label === 'function' && entry.label() === '数独')
+      var matched = entry.select({ gameId: 'sudoku' })
+      addBootCheck('select({gameId:"sudoku"}) 非 null', matched !== null && matched !== undefined)
+      addBootCheck('select({gameId:"2048"}) === null', entry.select({ gameId: '2048' }) === null)
+      addBootCheck('select(null) === null', entry.select(null) === null)
+
+      var seam = window.__DSH_GAME_SUDOKU__
+      var seamFns = ['findPuzzle', 'pickPuzzle', 'createState', 'getSnapshot', 'sanitizeSave', 'serializeState', 'loadSavedState', 'saveState', 'applyDigit', 'eraseCell', 'undoMove', 'restartPuzzle', 'newPuzzle', 'timerPause', 'timerResume', 'timerElapsed', 'formatTime', 'computeConflicts', 'hasProgress', 'selectCell', 'moveSelection', 'toggleNotesMode']
+      addBootCheck('seam 存在且含 v2 核心 API', !!seam && seamFns.every(function (name) { return typeof seam[name] === 'function' }))
+      addBootCheck('no runtime generator/solver (bank-driven)', !!seam && typeof seam.generatePuzzle === 'undefined' && typeof seam.countSolutions === 'undefined' && typeof seam.solve === 'undefined')
+      addBootCheck('STORE_KEY === "dsh.game.sudoku.v1" / SCHEMA_VERSION === 2', !!seam && seam.STORE_KEY === 'dsh.game.sudoku.v1' && seam.SCHEMA_VERSION === 2)
+      addBootCheck('CELLS === 81 / GAME_ID === "sudoku"', !!seam && seam.CELLS === 81 && seam.GAME_ID === 'sudoku')
+      var bankCount = seam && seam.BANK && Array.isArray(seam.BANK.puzzles) ? seam.BANK.puzzles.length : -1
+      addBootCheck('inline PUZZLE_BANK：5 档 / ' + bankCount + ' 题', !!seam && !!seam.BANK && bankCount >= 150 && seam.BANK.levels.length === 5)
+
+      R.render(R.createElement(registered.Component, { matched: matched }), gameRoot)
+      addBootCheck('渲染组件根 data-dsh-game="sudoku"', !!gameRoot.querySelector('[data-dsh-game="sudoku"]'))
+      var cellCount = gameRoot.querySelectorAll('[data-cell]').length
+      addBootCheck('棋盘 81 格（实际 ' + cellCount + '）', cellCount === 81)
+      addBootCheck('数字键盘 9 个（实际 ' + gameRoot.querySelectorAll('[data-digit]').length + '）', gameRoot.querySelectorAll('[data-digit]').length === 9)
+      addBootCheck('难度 chip 5 个（实际 ' + gameRoot.querySelectorAll('[data-difficulty]').length + '）', gameRoot.querySelectorAll('[data-difficulty]').length === 5)
+      setBootLine('client.js 已加载并渲染；registration / seam 校验完成', 'ok')
+      return true
+    } catch (error) {
+      setBootLine('启动失败：' + (error && error.message ? error.message : String(error)), 'bad')
+      window.__recordPreviewError('error', 'preview boot failed: ' + (error && error.stack ? error.stack : error))
+      return false
+    }
+  }
+
+  /* ================================================================== *
+   * 三、预览控制
+   * ================================================================== */
+
+  var currentTheme = 'light'
+  function setTheme(next) {
+    currentTheme = next === 'dark' ? 'dark' : 'light'
+    document.body.setAttribute('data-theme', currentTheme)
+    var button = $('theme-toggle')
+    button.setAttribute('aria-pressed', String(currentTheme === 'dark'))
+    button.textContent = currentTheme === 'dark' ? '切换主题：暗色' : '切换主题：亮色'
+    window.dispatchEvent(new Event('resize'))
+  }
+  $('theme-toggle').addEventListener('click', function () {
+    setTheme(currentTheme === 'light' ? 'dark' : 'light')
+  })
+
+  function setStageSize(width, height) {
+    stage.style.width = width + 'px'
+    stage.style.height = height + 'px'
+    $('stage-size-label').textContent = width + ' × ' + height
+    var buttons = document.querySelectorAll('#size-row button')
+    for (var i = 0; i < buttons.length; i += 1) {
+      var button = buttons[i]
+      button.setAttribute('aria-pressed', String(Number(button.getAttribute('data-w')) === width && Number(button.getAttribute('data-h')) === height))
+    }
+    window.dispatchEvent(new Event('resize'))
+  }
+  var sizeButtons = document.querySelectorAll('#size-row button')
+  for (var sizeIndex = 0; sizeIndex < sizeButtons.length; sizeIndex += 1) {
+    sizeButtons[sizeIndex].addEventListener('click', function (event) {
+      setStageSize(Number(event.currentTarget.getAttribute('data-w')), Number(event.currentTarget.getAttribute('data-h')))
+    })
+  }
+
+  function renderGame() {
+    if (!registered) return
+    var seam = window.__DSH_GAME_SUDOKU__
+    var matched = registered.entry.select({ gameId: seam ? seam.GAME_ID : 'sudoku' })
+    R.render(R.createElement(registered.Component, { matched: matched }), gameRoot)
+  }
+  function unmountGame() {
+    if (!R) return
+    R.unmountComponentAtNode(gameRoot)
+    while (gameRoot.firstChild) gameRoot.removeChild(gameRoot.firstChild)
+  }
+  function remountGame() {
+    if (!registered) return
+    unmountGame()
+    renderGame()
+  }
+  $('remount').addEventListener('click', remountGame)
+  $('clear-save').addEventListener('click', function () {
+    if (!registered) return
+    unmountGame()
+    var seam = window.__DSH_GAME_SUDOKU__
+    if (seam) { try { window.localStorage.removeItem(seam.STORE_KEY) } catch (error) { /* ignore */ } }
+    renderGame()
+  })
+
+  /* ================================================================== *
+   * 四、实时状态 / 错误面板
+   * ================================================================== */
+
+  function rootEl() { return gameRoot.querySelector('[data-dsh-game="sudoku"]') }
+  function readSave() {
+    try {
+      var seam = window.__DSH_GAME_SUDOKU__
+      if (!seam) return null
+      var raw = window.localStorage.getItem(seam.STORE_KEY)
+      return raw ? JSON.parse(raw) : null
+    } catch (error) { return null }
+  }
+  function readCells() {
+    var nodes = gameRoot.querySelectorAll('[data-cell]')
+    var out = []
+    for (var i = 0; i < nodes.length; i += 1) {
+      var node = nodes[i]
+      out.push({
+        index: Number(node.getAttribute('data-cell')),
+        given: node.getAttribute('data-given') === '1',
+        value: Number(node.getAttribute('data-value') || 0),
+        selected: node.getAttribute('data-selected') === '1',
+        peer: node.getAttribute('data-peer') === '1',
+        conflict: node.getAttribute('data-conflict') === '1',
+        text: labelOf(node),
+      })
+    }
+    return out
+  }
+  function overlayInfo() {
+    var node = gameRoot.querySelector('[data-overlay]')
+    if (!node) return null
+    return {
+      type: node.getAttribute('data-overlay'),
+      text: labelOf(node),
+      buttons: Array.prototype.map.call(node.querySelectorAll('button'), labelOf),
+    }
+  }
+  function timerText() {
+    var node = gameRoot.querySelector('[data-role="timer"]')
+    return node ? labelOf(node) : ''
+  }
+  function remainingText() {
+    var node = gameRoot.querySelector('[data-role="remaining"]')
+    return node ? labelOf(node) : ''
+  }
+  function difficultyPressed() {
+    var node = gameRoot.querySelector('[data-difficulty][aria-pressed="true"]')
+    return node ? node.getAttribute('data-difficulty') : ''
+  }
+
+  function refreshLiveStatus() {
+    var node = $('live-status')
+    var seam = window.__DSH_GAME_SUDOKU__
+    if (!seam) { node.textContent = 'seam 未安装'; return }
+    var cells = readCells()
+    var filled = cells.filter(function (c) { return c.value !== 0 }).length
+    var conflicts = cells.filter(function (c) { return c.conflict }).length
+    var save = readSave()
+    var parts = [
+      '难度=' + (difficultyPressed() || '?'),
+      '已填=' + filled + '/81',
+      '冲突=' + conflicts,
+      '计时=' + (timerText() || '?'),
+      '剩余=' + (remainingText() || '?'),
+    ]
+    if (save) parts.push('存档=' + (save.givens ? 'givens ' + save.givens.filter(function (v) { return v !== 0 }).length : '?') + ' 提示格')
+    node.textContent = parts.join(' · ')
+  }
+
+  function refreshErrorPanel() {
+    $('err-count').textContent = String(window.__errors.length)
+    $('rej-count').textContent = String(window.__rejections.length)
+    $('console-err-count').textContent = String(window.__consoleErrors.length)
+    $('err-count').className = 'err-count ' + (window.__errors.length ? 'bad' : 'ok')
+    $('rej-count').className = 'err-count ' + (window.__rejections.length ? 'bad' : 'ok')
+    $('console-err-count').className = 'err-count ' + (window.__consoleErrors.length ? 'bad' : 'ok')
+    var lines = []
+    window.__errors.forEach(function (entry) { lines.push('[window.error] ' + entry.message + (entry.extra && entry.extra.stack ? '\n' + entry.extra.stack : '')) })
+    window.__rejections.forEach(function (entry) { lines.push('[unhandledrejection] ' + entry.message + (entry.extra && entry.extra.stack ? '\n' + entry.extra.stack : '')) })
+    window.__consoleErrors.forEach(function (entry) { lines.push('[console.error] ' + entry.message) })
+    $('err-detail').textContent = lines.length ? lines.join('\n\n') : '（无）'
+  }
+
+  /* ================================================================== *
+   * 五、browser_eval 驱动接口（等价于真人操作）
+   * ================================================================== */
+
+  function keyEvent(key, options) {
+    var opts = options || {}
+    var target = rootEl()
+    if (!target) throw new Error('游戏根节点未渲染')
+    var event
+    try {
+      event = new KeyboardEvent('keydown', {
+        key: key,
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: !!opts.ctrlKey,
+        metaKey: !!opts.metaKey,
+        altKey: !!opts.altKey,
+        shiftKey: !!opts.shiftKey,
+      })
+    } catch (error) {
+      event = new KeyboardEvent('keydown', { key: key, bubbles: true, cancelable: true })
+    }
+    target.dispatchEvent(event)
+    return { defaultPrevented: !!event.defaultPrevented, key: key }
+  }
+
+  function clickCell(index) {
+    var node = gameRoot.querySelector('[data-cell="' + index + '"]')
+    if (!node) throw new Error('找不到格子 ' + index)
+    node.click()
+    return { index: index }
+  }
+
+  function clickSelector(selector) {
+    var node = gameRoot.querySelector(selector)
+    if (!node) throw new Error('找不到元素 ' + selector)
+    node.click()
+    return labelOf(node)
+  }
+
+  function clickAction(action) {
+    return clickSelector('[data-action="' + action + '"]')
+  }
+
+  function clickDigit(digit) {
+    var node = gameRoot.querySelector('[data-digit="' + digit + '"]')
+    if (!node) throw new Error('找不到数字键 ' + digit)
+    node.click()
+    return String(digit)
+  }
+
+  function boardRect() {
+    var board = gameRoot.querySelector('[data-sudoku-board]')
+    if (!board) return null
+    var rect = board.getBoundingClientRect()
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height, right: rect.right, bottom: rect.bottom }
+  }
+
+  window.__preview = {
+    definition: function () { return window.__gameDefinition || null },
+    registered: function () { return registered },
+    seam: function () { return window.__DSH_GAME_SUDOKU__ || null },
+    booted: function () { return !!window.__previewBooted },
+    bootChecks: function () { return Array.prototype.map.call($('boot-checks').children, labelOf) },
+    errors: function () {
+      return {
+        windowErrors: window.__errors.slice(),
+        rejections: window.__rejections.slice(),
+        consoleErrors: window.__consoleErrors.slice(),
+      }
+    },
+    selfTest: function () { return window.__selfTestResult || null },
+    save: readSave,
+    saveRaw: function () { try { return window.localStorage.getItem(window.__DSH_GAME_SUDOKU__.STORE_KEY) } catch (error) { return null } },
+    setStage: setStageSize,
+    setTheme: setTheme,
+    remount: remountGame,
+    clearSaveAndRemount: function () { $('clear-save').click() },
+    root: rootEl,
+    cells: readCells,
+    cell: function (index) { return readCells().filter(function (c) { return c.index === index })[0] || null },
+    clickCell: clickCell,
+    clickDigit: clickDigit,
+    clickAction: clickAction,
+    clickButton: function (label) {
+      var buttons = gameRoot.querySelectorAll('button')
+      for (var i = 0; i < buttons.length; i += 1) {
+        if (labelOf(buttons[i]) === label || labelOf(buttons[i]).indexOf(label) >= 0) { buttons[i].click(); return labelOf(buttons[i]) }
+      }
+      throw new Error('找不到按钮：' + label)
+    },
+    buttonLabels: function () { return Array.prototype.map.call(gameRoot.querySelectorAll('button'), labelOf) },
+    pressKey: keyEvent,
+    timerText: timerText,
+    remainingText: remainingText,
+    difficulty: difficultyPressed,
+    notesMode: function () {
+      var node = gameRoot.querySelector('[data-action="notes"]')
+      return node ? node.getAttribute('aria-pressed') === 'true' : null
+    },
+    overlay: overlayInfo,
+    boardRect: boardRect,
+    stageRect: function () { var rect = stage.getBoundingClientRect(); return { width: rect.width, height: rect.height } },
+    tooSmall: function () { return !!gameRoot.querySelector('[data-role="too-small"]') },
+    activeElement: function () { var el = document.activeElement; return el && el.getAttribute ? { tag: el.tagName, action: el.getAttribute && el.getAttribute('data-action'), cell: el.getAttribute && el.getAttribute('data-cell') } : null },
+    scrollInfo: function () {
+      var root = rootEl()
+      if (!root) return null
+      return { rootScrollW: root.scrollWidth, rootClientW: root.clientWidth, rootScrollH: root.scrollHeight, rootClientH: root.clientHeight }
+    },
+  }
+
+  /* ================================================================== *
+   * 六、启动
+   * ================================================================== */
+
+  var selfTest = { passed: 0, failed: 0 }
+  try { selfTest = runFakeReactSelfTest() }
+  catch (error) {
+    $('selftest-summary').className = 'line bad'
+    $('selftest-summary').textContent = 'fake-react 自检直接抛错：' + (error && error.message ? error.message : error)
+  }
+  window.__selfTestResult = selfTest
+
+  window.__previewBooted = bootClient()
+  refreshLiveStatus()
+  refreshErrorPanel()
+  window.setInterval(refreshLiveStatus, 500)
+  window.setInterval(refreshErrorPanel, 500)
+})()
+</script>
+<script>
+/* =====================================================================
+ * Screenshot demo states (dev-only): preview.html?shot=light|dark|small|tiny|win|confirm
+ * Sets a deterministic state and writes a ready marker to file:// localStorage
+ * so a screenshot driver can wait without touching the iframe DOM.
+ * =================================================================== */
+(function () {
+  'use strict'
+  var shot = null
+  try { shot = new URLSearchParams(window.location.search).get('shot') } catch (error) { return }
+  if (!shot) return
+  return // v2: screenshot demo states moved to dev/ui-check/acceptance-v2.js
+
+  function wait(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
+  function mark(state) {
+    try { window.localStorage.setItem('dsh.sudoku.shot.ready', JSON.stringify({ shot: shot, state: state, at: Date.now() })) } catch (error) {}
+    window.__shotReady = state
+  }
+  async function run() {
+    var P = window.__preview
+    for (var i = 0; i < 160 && !(P && window.__previewBooted); i += 1) await wait(25)
+    if (!P) { mark('no-preview'); return }
+    mark('starting')
+    if (shot === 'dark' || shot === 'small' || shot === 'tiny') {
+      P.clearSaveAndRemount()
+      await wait(160)
+    }
+    if (shot === 'dark') { P.setTheme('dark'); await wait(120) }
+    if (shot === 'small') { P.setStage(360, 520); await wait(120) }
+    if (shot === 'tiny') { P.setStage(300, 200); await wait(120) }
+    if (shot === 'win') {
+      P.clearSaveAndRemount(); await wait(160)
+      var firstEmpty = P.cells().filter(function (cell) { return !cell.given })[0]
+      P.clickCell(firstEmpty.index); await wait(40)
+      var save = P.save()
+      var solution = save.solution
+      var empties = P.cells().filter(function (cell) { return !cell.given })
+      for (var k = 0; k < empties.length; k += 1) {
+        P.clickCell(empties[k].index)
+        P.pressKey(String(solution[empties[k].index]))
+      }
+      await wait(160)
+    }
+    if (shot === 'confirm') {
+      P.clearSaveAndRemount(); await wait(160)
+      var emptyCell = P.cells().filter(function (cell) { return !cell.given })[0]
+      P.clickCell(emptyCell.index)
+      P.pressKey('5')
+      var newButton = document.querySelector('[data-action="new"]')
+      if (newButton) newButton.click()
+      await wait(120)
+    }
+    if (shot === 'light') { P.clearSaveAndRemount(); await wait(160) }
+    mark('ready')
+  }
+  run().catch(function (error) { mark('error: ' + (error && error.message ? error.message : String(error))) })
+})()
+</script>
+<script>
+/* =====================================================================
+ * Lead acceptance suite (dev-only).
+ * Load preview.html?acceptance=1 inside a hidden iframe; results are written
+ * to file:// localStorage so a shared browser being navigated mid-run cannot
+ * lose them. Used for the Chromium E2E evidence in the handoff report.
+ * =================================================================== */
+(function () {
+  'use strict'
+  var RESULT_KEY = 'dsh.sudoku.acceptance.v1'
+  if (!/[?&]acceptance=__legacy_disabled__/.test(window.location.search)) return // v2: see dev/ui-check/acceptance-v2.js
+
+  var checks = []
+  var details = {}
+  var startedAt = Date.now()
+
+  function write(payload) {
+    try { window.localStorage.setItem(RESULT_KEY, JSON.stringify(payload)) } catch (error) { /* ignore */ }
+    window.__acceptanceResult = payload
+  }
+  function ck(name, condition, detail) {
+    checks.push({ name: name, pass: !!condition })
+    if (!condition && detail !== undefined) details[name] = detail
+  }
+  function wait(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
+  function q(selector) { return window.__preview ? window.__preview : null }
+  function overlayButton(action) {
+    var node = document.querySelector('[data-overlay="confirm"] [data-action="' + action + '"]')
+    if (!node) throw new Error('missing confirm button ' + action)
+    node.click()
+  }
+  function clickActionInGame(action) {
+    var node = document.querySelector('[data-action="' + action + '"]')
+    if (!node) throw new Error('missing action ' + action)
+    node.click()
+    return node
+  }
+  function digitDisabled() {
+    var node = document.querySelector('[data-digit="1"]')
+    return node ? node.disabled === true : null
+  }
+  function undoDisabled() {
+    var node = document.querySelector('[data-action="undo"]')
+    return node ? node.disabled === true : null
+  }
+  function boardBox() { return window.__preview ? window.__preview.boardRect() : null }
+  function stageBox() { return window.__preview ? window.__preview.stageRect() : null }
+
+  async function run() {
+    var P = window.__preview
+    for (var bootWait = 0; bootWait < 160 && !(P && window.__previewBooted); bootWait += 1) await wait(25)
+    ck('boot: client.js loaded, fake-host registered, component rendered',
+      !!P && window.__previewBooted === true && P.cells().length === 81 && P.seam() !== null,
+      { booted: !!window.__previewBooted, cells: P ? P.cells().length : -1 })
+    ck('registration/seam: id sudoku, 81 cells, save key',
+      !!P.seam() && P.seam().GAME_ID === 'sudoku' && P.seam().CELLS === 81 && P.seam().STORE_KEY === 'dsh.game.sudoku.v1')
+
+    // ---------- clean game ----------
+    P.clearSaveAndRemount()
+    await wait(140)
+    ck('fresh game: normal difficulty, 34 givens, 47 empty',
+      P.difficulty() === 'normal' && Number(P.remainingText()) === 47,
+      { difficulty: P.difficulty(), remaining: P.remainingText() })
+    ck('fresh timer starts at 00:00', P.timerText() === '00:00', { timer: P.timerText() })
+
+    // ---------- selection / peers / input / notes / undo ----------
+    var empties = P.cells().filter(function (cell) { return !cell.given })
+    var a = empties[0].index
+    var b = empties[1].index
+    P.clickCell(a)
+    ck('selection: tapped cell is selected', P.cell(a).selected === true)
+    ck('peer highlight: 20 row/col/box peers', P.cells().filter(function (cell) { return cell.peer }).length === 20,
+      P.cells().filter(function (cell) { return cell.peer }).length)
+    P.pressKey('5')
+    ck('keyboard 1-9 fills the selected cell', P.cell(a).value === 5, P.cell(a).value)
+    ck('undo becomes available after an edit', undoDisabled() === false)
+    var undoCountBefore = P.save() ? P.save().undo.length : -1
+    P.pressKey('5')
+    ck('same digit again is a no-op (not auto-erase)', P.cell(a).value === 5 && (P.save() ? P.save().undo.length : -1) === undoCountBefore)
+    var save = P.save()
+    ck('save schema: schemaVersion 1, key dsh.game.sudoku.v1, solution present',
+      !!save && save.schemaVersion === 1 && save.givens.filter(function (v) { return v !== 0 }).length === 34 &&
+        Array.isArray(save.solution) && save.solution.length === 81,
+      save ? { schema: save.schemaVersion, givens: save.givens.filter(function (v) { return v !== 0 }).length } : null)
+
+    P.clickCell(b)
+    clickActionInGame('notes')
+    ck('pencil mode toggles on', P.notesMode() === true)
+    P.pressKey('3')
+    P.pressKey('7')
+    ck('pencil marks 3+7 render, cell stays empty',
+      P.cell(b).value === 0 && P.cell(b).text.indexOf('3') >= 0 && P.cell(b).text.indexOf('7') >= 0,
+      P.cell(b).text)
+    clickActionInGame('notes')
+    P.pressKey('4')
+    ck('normal input replaces pencil marks', P.cell(b).value === 4 && P.cell(b).text === '4', P.cell(b).text)
+    P.pressKey('Backspace')
+    ck('Backspace erases the cell', P.cell(b).value === 0 && P.cell(b).text === '')
+    P.pressKey('z', { ctrlKey: true })
+    ck('Ctrl+Z restores erased value', P.cell(b).value === 4, P.cell(b).value)
+    P.pressKey('z', { ctrlKey: true })
+    ck('Ctrl+Z is step-by-step: restores pencil marks next',
+      P.cell(b).value === 0 && P.cell(b).text.indexOf('3') >= 0 && P.cell(b).text.indexOf('7') >= 0,
+      P.cell(b).text)
+
+    // ---------- conflict highlighting ----------
+    // Start from a clean board so no earlier probe value can contribute
+    // conflicts, then pick an empty cell + a digit that already exists in its
+    // ROW but not in its column/box. Filling it must create exactly two red
+    // cells (this cell + the row twin), never more.
+    P.clearSaveAndRemount()
+    await wait(160)
+    var allCells = P.cells()
+    var valueAt = {}
+    allCells.forEach(function (cell) { valueAt[cell.index] = cell.value })
+    var conflictSetup = null
+    for (var ce = 0; ce < allCells.length && !conflictSetup; ce += 1) {
+      var probe = allCells[ce]
+      if (probe.given || probe.value !== 0) continue
+      var probeRow = Math.floor(probe.index / 9)
+      var probeCol = probe.index % 9
+      var inRow = {}, inCol = {}, inBox = {}
+      for (var k = 0; k < 81; k += 1) {
+        var kv = valueAt[k]
+        if (!kv) continue
+        var kr = Math.floor(k / 9), kc = k % 9
+        if (kr === probeRow) inRow[kv] = 1
+        if (kc === probeCol) inCol[kv] = 1
+        if (Math.floor(kr / 3) === Math.floor(probeRow / 3) && Math.floor(kc / 3) === Math.floor(probeCol / 3)) inBox[kv] = 1
+      }
+      for (var cd = 1; cd <= 9; cd += 1) {
+        if (inRow[cd] && !inCol[cd] && !inBox[cd]) { conflictSetup = { index: probe.index, digit: cd }; break }
+      }
+    }
+    if (conflictSetup) {
+      P.clickCell(conflictSetup.index)
+      P.pressKey(String(conflictSetup.digit))
+      await wait(120) /* cell background has a 60ms transition */
+      var conflictCells = P.cells().filter(function (cell) { return cell.conflict })
+      var conflictBg = window.getComputedStyle(document.querySelector('[data-cell="' + conflictSetup.index + '"]')).backgroundColor
+      ck('conflict: duplicate in row flags the cell and its row twin red',
+        conflictCells.length === 2 &&
+          conflictCells.some(function (cell) { return cell.index === conflictSetup.index }) &&
+          conflictBg === 'rgb(254, 226, 226)',
+        { count: conflictCells.length, bg: conflictBg, setup: conflictSetup })
+      P.pressKey('Backspace')
+      await wait(120)
+      ck('conflict clears when duplicate is erased',
+        P.cells().filter(function (cell) { return cell.conflict }).length === 0)
+    } else {
+      ck('conflict: duplicate in row flags the cell and its row twin red', false, { reason: 'no deterministic setup' })
+      ck('conflict clears when duplicate is erased', false)
+    }
+
+    // ---------- keyboard isolation + timer ----------
+    var beforeExternal = P.cells().map(function (cell) { return cell.value }).join(',')
+    var external = document.createElement('input')
+    document.body.appendChild(external)
+    external.dispatchEvent(new KeyboardEvent('keydown', { key: '7', bubbles: true, cancelable: true }))
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '8', bubbles: true, cancelable: true }))
+    external.remove()
+    ck('keydown outside the game root does not edit the board',
+      P.cells().map(function (cell) { return cell.value }).join(',') === beforeExternal)
+    var timerBefore = P.timerText()
+    await wait(1400)
+    ck('timer display advances while visible', P.timerText() !== timerBefore, { before: timerBefore, after: P.timerText() })
+
+    // Put some progress on the board so the remount / confirm checks below are
+    // meaningful (a value and a pencil-marked cell).
+    var progressCells = P.cells().filter(function (cell) { return !cell.given && cell.value === 0 })
+    P.clickCell(progressCells[0].index)
+    P.pressKey('6')
+    P.clickCell(progressCells[1].index)
+    clickActionInGame('notes')
+    P.pressKey('2')
+    P.pressKey('4')
+    clickActionInGame('notes')
+    await wait(60)
+
+    // ---------- remount keeps the SAME puzzle and progress ----------
+    save = P.save()
+    var restored = {
+      givens: save.givens.join(','),
+      board: save.board.join(','),
+      notes: save.notes.join(','),
+      selected: save.selected,
+      difficulty: save.difficulty,
+      elapsed: save.elapsedMs,
+    }
+    P.remount()
+    await wait(140)
+    var reread = P.save()
+    var domCells = P.cells()
+    ck('remount restores the CURRENT puzzle (givens unchanged, not regenerated)',
+      !!reread && reread.givens.join(',') === restored.givens && reread.difficulty === restored.difficulty)
+    ck('remount restores fills, pencil marks and selected cell',
+      !!reread && reread.board.join(',') === restored.board && reread.notes.join(',') === restored.notes &&
+        reread.selected === restored.selected)
+    ck('remount keeps elapsed time (not reset) and resumes',
+      !!reread && reread.elapsedMs >= restored.elapsed && P.timerText() !== '00:00',
+      { elapsed: reread ? reread.elapsedMs : null, timer: P.timerText() })
+    ck('DOM board matches restored save',
+      domCells.every(function (cell) { return cell.value === reread.board[cell.index] && cell.given === (reread.givens[cell.index] !== 0) }))
+
+    // ---------- difficulty switch (confirm) ----------
+    document.querySelector('[data-difficulty="hard"]').click()
+    await wait(30)
+    var switchOverlay = P.overlay()
+    ck('switching difficulty with progress asks for confirmation', !!switchOverlay && switchOverlay.type === 'confirm', switchOverlay)
+    overlayButton('cancel')
+    await wait(30)
+    ck('cancel keeps the current puzzle and difficulty',
+      P.difficulty() === 'normal' && P.save() && P.save().givens.join(',') === restored.givens && !P.overlay())
+    document.querySelector('[data-difficulty="hard"]').click()
+    await wait(30)
+    overlayButton('confirm')
+    await wait(140)
+    ck('confirming difficulty starts a new hard puzzle (28 givens, 53 empty)',
+      P.difficulty() === 'hard' && Number(P.remainingText()) === 53 &&
+        P.save().givens.filter(function (v) { return v !== 0 }).length === 28,
+      { difficulty: P.difficulty(), remaining: P.remainingText() })
+    document.querySelector('[data-difficulty="easy"]').click()
+    await wait(140)
+    ck('switching with no progress starts immediately (easy: 40 givens, 41 empty)',
+      P.difficulty() === 'easy' && Number(P.remainingText()) === 41 &&
+        P.save().givens.filter(function (v) { return v !== 0 }).length === 40,
+      { difficulty: P.difficulty(), remaining: P.remainingText() })
+
+    // ---------- restart same puzzle ----------
+    var beforeRestart = P.save().givens.join(',')
+    var restartCell = P.cells().filter(function (cell) { return !cell.given })[0].index
+    P.clickCell(restartCell)
+    P.pressKey('2')
+    clickActionInGame('restart')
+    await wait(30)
+    ck('restart with progress asks for confirmation', (P.overlay() || {}).type === 'confirm')
+    overlayButton('confirm')
+    await wait(140)
+    ck('restart keeps the same puzzle', P.save().givens.join(',') === beforeRestart)
+    ck('restart clears fills, pencil marks, undo and timer',
+      P.cells().filter(function (cell) { return !cell.given && cell.value !== 0 }).length === 0 &&
+        undoDisabled() === true && P.timerText() === '00:00',
+      { timer: P.timerText(), undoDisabled: undoDisabled() })
+
+    // ---------- new game ----------
+    var beforeNew = P.save().givens.join(',')
+    var newCell = P.cells().filter(function (cell) { return !cell.given })[0].index
+    P.clickCell(newCell)
+    P.pressKey('3')
+    clickActionInGame('new')
+    await wait(30)
+    ck('new game with progress asks for confirmation', (P.overlay() || {}).type === 'confirm')
+    overlayButton('confirm')
+    await wait(140)
+    ck('new game changes the puzzle and resets timer',
+      P.save().givens.join(',') !== beforeNew && P.timerText() === '00:00')
+
+    // ---------- win ----------
+    save = P.save()
+    var solution = save.solution
+    var emptiesNow = P.cells().filter(function (cell) { return !cell.given })
+    for (var i = 0; i < emptiesNow.length; i += 1) {
+      P.clickCell(emptiesNow[i].index)
+      P.pressKey(String(solution[emptiesNow[i].index]))
+    }
+    await wait(160)
+    var winOverlay = P.overlay()
+    ck('win: overlay shows when the grid is complete and valid',
+      !!winOverlay && winOverlay.type === 'win' && Number(P.remainingText()) === 0, winOverlay)
+    ck('win: time shown on the overlay', !!winOverlay && winOverlay.text.indexOf('用时') >= 0, winOverlay ? winOverlay.text : null)
+    var frozenTimer = P.timerText()
+    await wait(1200)
+    ck('win: timer pauses', P.timerText() === frozenTimer, { before: frozenTimer, after: P.timerText() })
+    ck('win: undo and digit inputs are disabled', undoDisabled() === true && digitDisabled() === true)
+    ck('win: save records won=true, winAcked=false', P.save().won === true && P.save().winAcked === false)
+    document.querySelector('[data-overlay="win"] [data-action="dismiss-win"]').click()
+    await wait(40)
+    ck('win: dismiss closes overlay and persists winAcked',
+      !P.overlay() && P.save().winAcked === true)
+    var lockedBoard = P.cells().map(function (cell) { return cell.value }).join(',')
+    P.clickCell(0)
+    P.pressKey('9')
+    ck('win: board stays locked after dismissing', P.cells().map(function (cell) { return cell.value }).join(',') === lockedBoard)
+    var wonGivens = P.save().givens.join(',')
+    clickActionInGame('new')
+    await wait(140)
+    ck('win: 新游戏 starts immediately without confirmation and resets timer',
+      !P.overlay() && P.timerText() === '00:00' && P.save().givens.join(',') !== wonGivens)
+
+    // ---------- clear save starts a fresh puzzle ----------
+    var domGivensBefore = P.cells().map(function (cell) { return cell.given ? cell.value : 0 }).join(',')
+    P.clearSaveAndRemount()
+    await wait(160)
+    ck('clearing the save starts a new puzzle (not the old one)',
+      P.cells().map(function (cell) { return cell.given ? cell.value : 0 }).join(',') !== domGivensBefore &&
+        P.cells().every(function (cell) { return cell.given ? cell.value !== 0 : cell.value === 0 }))
+    ck('clearing the save resets the timer', P.timerText() === '00:00')
+
+    // ---------- responsive layout + too-small ----------
+    var sizeResults = []
+    var sizeList = [[360, 520], [1100, 700], [720, 600], [300, 200]]
+    for (var s = 0; s < sizeList.length; s += 1) {
+      P.setStage(sizeList[s][0], sizeList[s][1])
+      await wait(80)
+      var board = boardBox()
+      var stage = stageBox()
+      var scroll = P.scrollInfo()
+      sizeResults.push({
+        stage: sizeList[s],
+        board: board ? { w: Math.round(board.width), h: Math.round(board.height) } : null,
+        fits: board ? board.width <= stage.width + 0.5 && board.height <= stage.height + 0.5 && Math.abs(board.width - board.height) < 0.6 : null,
+        tooSmall: P.tooSmall(),
+        overflow: scroll ? scroll.rootScrollW > scroll.rootClientW + 1 || scroll.rootScrollH > scroll.rootClientH + 1 : null,
+      })
+    }
+    details.sizes = sizeResults
+    ck('layout: board fits and stays square at 360x520, 1100x700, 720x600',
+      sizeResults.slice(0, 3).every(function (item) { return item.fits === true && item.overflow === false && item.tooSmall === false }))
+    ck('layout: 300x200 shows the too-small hint instead of a broken board',
+      sizeResults[3].tooSmall === true && sizeResults[3].board === null)
+    P.setStage(720, 600)
+    await wait(60)
+
+    // ---------- console clean ----------
+    var errors = P.errors()
+    ck('console: zero window errors / rejections / console.error',
+      errors.windowErrors.length === 0 && errors.rejections.length === 0 && errors.consoleErrors.length === 0,
+      errors)
+
+    var failed = checks.filter(function (item) { return !item.pass }).map(function (item) { return item.name })
+    return {
+      status: 'done',
+      ok: failed.length === 0,
+      total: checks.length,
+      failed: failed,
+      checks: checks,
+      details: details,
+      errors: errors,
+      durationMs: Date.now() - startedAt,
+      finishedAt: new Date().toISOString(),
+    }
+  }
+
+  write({ status: 'running', startedAt: startedAt, page: window.location.href })
+  run().then(function (result) {
+    write(result)
+  }).catch(function (error) {
+    write({
+      status: 'error',
+      ok: false,
+      error: error && error.stack ? String(error.stack) : String(error),
+      checks: checks,
+      details: details,
+      durationMs: Date.now() - startedAt,
+    })
+  })
+})()
+</script>
+<script src="ui-check/acceptance-v2.js"></script>
+</body>
+</html>

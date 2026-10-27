@@ -1,0 +1,3 @@
+- insert:
+    - id: game-gomoku
+      name: '@local/dsh-game-gomoku'

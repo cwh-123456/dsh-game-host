@@ -1,0 +1,36 @@
+复扫雷 Complexweeper —— DSH 游戏包（@local/dsh-game-complexweeper）
+规则引擎移植自 Zig 原版 Complexweeper。
+
+原项目：复扫雷 Complexweeper
+原作者：青月晓（Yueqing Chen）
+上游仓库：https://github.com/Yueqing-Chen/complexweeper-A-minesweeper-game
+参考源码：正式版/src/game.zig、正式版/src/selftest.zig
+原项目许可证：GNU General Public License v3.0（GPL-3.0）
+
+本移植（engine.js 及 client.js 中的规则逻辑）是原项目的衍生作品，
+同样以 GNU General Public License v3.0（SPDX: GPL-3.0-only）发布。
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+GPL-3.0 完整许可证文本：
+  - https://www.gnu.org/licenses/gpl-3.0.txt
+  - 或上游仓库的 LICENSE 文件
+
+图像素材：本包**没有**复制原项目的任何图像/音频素材；棋盘、旗、雷、数字
+全部由 client.js 用 canvas 在运行时自绘。原项目中的微软扫雷原版素材
+权利属于 Microsoft，新增素材权利属于青月晓，均不在本包的 GPL-3.0 授权范围内，
+本包也未包含它们。
+
+本程序是独立复刻/移植作品，与 Microsoft 公司无隶属关系，也未获得其授权或背书。
+"Minesweeper"、"扫雷"及相关商标归各自权利人所有。

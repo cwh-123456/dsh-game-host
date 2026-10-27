@@ -1,0 +1,9 @@
+This file only exists because the sandbox denied directory creation from a spawned
+process: `New-Item dev/audit` failed with access denied while the fs `write` tool
+worked. It documents that observation for the audit record; it is not a game asset.
+
+Details (see VERIFIER.md "Limits"): in this session `pwsh` and `node` child processes
+are read-only against the workspace (any `writeFileSync` returns EPERM), while the
+write/edit tools can write. Therefore every audit script under dev/audit/ is a
+read-only reporter that prints to stdout. The verifier could not delete this scratch
+file from a spawned process, so it was repurposed as this note.

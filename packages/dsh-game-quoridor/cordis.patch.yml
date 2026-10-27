@@ -1,0 +1,3 @@
+- insert:
+    - id: game-quoridor
+      name: '@local/dsh-game-quoridor'

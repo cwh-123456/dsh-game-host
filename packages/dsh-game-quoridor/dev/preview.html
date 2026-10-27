@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>墙棋 Quoridor · DSH 游戏包 dev 预览（非宿主验收）</title>
+<style>
+  /* ------------------------------------------------------------------
+   * 页面自己定义两套 DSH token（值取合理近似，仅用于 dev 预览）。
+   * 游戏工具栏/状态栏/规则弹窗全部用这些 token，所以切换主题能直接
+   * 验证「文字可读、面板底色正确」。
+   * ---------------------------------------------------------------- */
+  :root {
+    color-scheme: light;
+    --dsw-alias-bg-base: #ffffff;
+    --dsw-alias-bg-layer-1: #f7f8fa;
+    --dsw-alias-bg-layer-2: #f1f3f5;
+    --dsw-alias-label-primary: #1f2328;
+    --dsw-alias-label-secondary: #57606a;
+    --dsw-alias-label-tertiary: #8b949e;
+    --dsw-alias-border-l1: #d0d7de;
+    --dsw-alias-border-l2: #b6bec8;
+    --dsw-alias-brand-primary: #2f81f7;
+    --dsw-alias-interactive-bg-hover: #eceff2;
+    --dsw-alias-interactive-bg-active: #dfe4e9;
+    --dsw-alias-bg-mask-1: rgba(9, 12, 16, 0.38);
+    --dsw-elevation-panel: 0 8px 24px rgba(0, 0, 0, 0.18);
+    --page-bg: #e9ecf0;
+    --page-fg: #1f2328;
+    --page-card: #ffffff;
+    --page-line: #d5dbe2;
+  }
+  body[data-theme="dark"] {
+    color-scheme: dark;
+    --dsw-alias-bg-base: #17191c;
+    --dsw-alias-bg-layer-1: #1c1f24;
+    --dsw-alias-bg-layer-2: #21262d;
+    --dsw-alias-label-primary: #e6edf3;
+    --dsw-alias-label-secondary: #a7b0ba;
+    --dsw-alias-label-tertiary: #7d8590;
+    --dsw-alias-border-l1: #30363d;
+    --dsw-alias-border-l2: #414a55;
+    --dsw-alias-brand-primary: #4b8ef7;
+    --dsw-alias-interactive-bg-hover: #2a313a;
+    --dsw-alias-interactive-bg-active: #333c47;
+    --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.55);
+    --dsw-elevation-panel: 0 12px 40px rgba(0, 0, 0, 0.5);
+    --page-bg: #101216;
+    --page-fg: #e6edf3;
+    --page-card: #1b1e23;
+    --page-line: #2b3139;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    padding: 18px;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font: 14px/1.55 "Segoe UI", system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+  }
+
+  .layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    max-width: 1500px;
+    margin: 0 auto;
+  }
+  .preview-col { display: flex; flex-direction: column; gap: 10px; }
+  .stage-label { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 12px; color: var(--page-fg); opacity: 0.75; }
+  .stage-label b { font-size: 13px; opacity: 1; }
+  .stage {
+    position: relative;
+    width: 720px;
+    height: 600px;
+    background: var(--dsw-alias-bg-base);
+    border: 1px solid var(--page-line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.18);
+  }
+  #game-root { width: 100%; height: 100%; }
+
+  .side {
+    flex: 1 1 380px;
+    min-width: 340px;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  h1 small { font-size: 12px; font-weight: 400; opacity: 0.65; margin-left: 6px; }
+  .card {
+    border: 1px solid var(--page-line);
+    border-radius: 10px;
+    background: var(--page-card);
+    padding: 11px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .card h2 { margin: 0; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.65; font-weight: 600; }
+  .row { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+  button {
+    font: inherit;
+    font-size: 12.5px;
+    padding: 6px 11px;
+    border-radius: 7px;
+    border: 1px solid var(--page-line);
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--page-fg);
+    cursor: pointer;
+  }
+  button:hover { background: var(--dsw-alias-interactive-bg-active); }
+  button[aria-pressed="true"] { border-color: var(--dsw-alias-brand-primary); box-shadow: inset 0 0 0 1px var(--dsw-alias-brand-primary); }
+  .line { font-size: 12.5px; color: var(--page-fg); opacity: 0.85; word-break: break-word; }
+  .line b { font-variant-numeric: tabular-nums; }
+  .ok { color: #1a7f37; }
+  body[data-theme="dark"] .ok { color: #4ac26b; }
+  .bad { color: #cf222e; }
+  body[data-theme="dark"] .bad { color: #ff7b72; }
+  ul.checklist { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.55; }
+  ul.checklist li { margin: 1px 0; }
+  pre {
+    margin: 0;
+    padding: 9px 10px;
+    min-height: 44px;
+    max-height: 230px;
+    overflow: auto;
+    border-radius: 7px;
+    background: var(--dsw-alias-bg-layer-2);
+    border: 1px solid var(--page-line);
+    color: var(--dsw-alias-label-secondary);
+    font-size: 11.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .hint { font-size: 11.5px; line-height: 1.65; opacity: 0.7; }
+  .err-count { font-variant-numeric: tabular-nums; font-weight: 600; }
+  #selftest-sandbox { position: absolute; left: -9999px; top: 0; width: 320px; height: 200px; overflow: hidden; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--page-line); font-size: 11px; opacity: 0.9; }
+</style>
+</head>
+<body data-theme="light">
+
+<div class="layout">
+  <div class="preview-col">
+    <div class="stage-label">
+      <b>游戏舞台（假宿主）</b>
+      <span id="stage-size-label">720 × 600</span>
+      <span>· dev 预览，不是宿主内验收</span>
+    </div>
+    <div id="stage" class="stage">
+      <div id="game-root"></div>
+    </div>
+    <p class="hint" style="margin:0;">
+      舞台尺寸切换会触发 client.js 里的 ResizeObserver；主题切换只换 CSS token
+      （工具栏/弹窗应立刻跟随，棋盘保持自己的配色）。
+    </p>
+  </div>
+
+  <div class="side">
+    <h1>墙棋 Quoridor <small>dev preview</small></h1>
+
+    <div class="card">
+      <h2>页面控制</h2>
+      <div class="row">
+        <button id="theme-toggle" aria-pressed="false">切换主题：亮色</button>
+        <button id="remount">重挂组件</button>
+        <button id="clear-save">清空存档 + 重挂</button>
+      </div>
+      <div class="row" id="size-row">
+        <button data-w="360" data-h="520" aria-pressed="false">360×520</button>
+        <button data-w="720" data-h="600" aria-pressed="true">720×600</button>
+        <button data-w="1100" data-h="700" aria-pressed="false">1100×700</button>
+      </div>
+      <div class="line" id="live-status">等待 client.js…</div>
+    </div>
+
+    <div class="card">
+      <h2>fake-react 自检（dev harness 自身）</h2>
+      <div class="line" id="selftest-summary">未运行</div>
+      <ul class="checklist" id="selftest-list"></ul>
+      <div id="selftest-sandbox"></div>
+    </div>
+
+    <div class="card">
+      <h2>client.js 注册 / seam 校验</h2>
+      <div class="line" id="boot-status">未加载</div>
+      <ul class="checklist" id="boot-checks"></ul>
+    </div>
+
+    <div class="card">
+      <h2>window error / unhandledrejection</h2>
+      <div class="row">
+        <span>window error：<span id="err-count" class="err-count">0</span></span>
+        <span>unhandledrejection：<span id="rej-count" class="err-count">0</span></span>
+        <span>console.error：<span id="console-err-count" class="err-count">0</span></span>
+      </div>
+      <pre id="err-detail">（无）</pre>
+      <div class="hint">冒烟验收要求三项计数全为 0；加载失败信息也会出现在这里。</div>
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================================
+     1) 先装 test seam + 假模块表 + 错误收集，再加载 fake-react.js 和 client.js
+     ==================================================================== -->
+<script>
+  window.__DSH_GAME_QUORIDOR_TEST__ = true
+  window.__ModuleLoader__ = {
+    load: function (definition) {
+      window.__gameDefinition = definition
+    },
+  }
+  window.__errors = []
+  window.__rejections = []
+  window.__consoleErrors = []
+
+  function recordError(kind, message, extra) {
+    var entry = { kind: kind, message: String(message), at: Date.now() }
+    if (extra) entry.extra = extra
+    if (kind === 'console.error') window.__consoleErrors.push(entry)
+    else if (kind === 'unhandledrejection') window.__rejections.push(entry)
+    else window.__errors.push(entry)
+  }
+  window.__recordPreviewError = recordError
+
+  window.addEventListener('error', function (event) {
+    var target = event.target
+    var detail = ''
+    if (target && target !== window && target.tagName) {
+      detail = '<' + String(target.tagName).toLowerCase() + '> ' + (target.src || target.href || '')
+    }
+    recordError('error', event.message || (detail || 'resource load error'), {
+      filename: event.filename || '',
+      lineno: event.lineno || 0,
+      stack: event.error && event.error.stack ? String(event.error.stack) : '',
+      detail: detail,
+    })
+  }, true)
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event.reason
+    recordError('unhandledrejection', reason && reason.message ? reason.message : String(reason), {
+      stack: reason && reason.stack ? String(reason.stack) : '',
+    })
+  })
+
+  var nativeConsoleError = console.error.bind(console)
+  console.error = function () {
+    var parts = []
+    for (var i = 0; i < arguments.length; i += 1) parts.push(String(arguments[i]))
+    recordError('console.error', parts.join(' '))
+    nativeConsoleError.apply(console, arguments)
+  }
+</script>
+<script src="fake-react.js"></script>
+<script>
+  window.__clientScriptError = null
+</script>
+<script src="../client.js"
+        onerror="window.__clientScriptError = 'client.js 加载失败（文件不存在或不可读）'; window.__recordPreviewError('error', window.__clientScriptError)"></script>
+
+<script>
+(function () {
+  'use strict'
+
+  var TEXT = {
+    ok: '✓',
+    bad: '✗',
+  }
+
+  function $(id) { return document.getElementById(id) }
+  function append(parent, tag, cls, text) {
+    var node = document.createElement(tag)
+    if (cls) node.className = cls
+    if (text !== undefined) node.textContent = text
+    parent.appendChild(node)
+    return node
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild) }
+
+  /* ================================================================== *
+   * 一、fake-react 自检（先跑，跑完卸载，避免与游戏组件抢同一个 root）
+   * ================================================================== */
+
+  function runFakeReactSelfTest() {
+    var R = window.FakeReact
+    var summary = $('selftest-summary')
+    var list = $('selftest-list')
+    clear(list)
+    if (!R) {
+      summary.textContent = 'fake-react.js 未加载（无法运行）'
+      summary.className = 'line bad'
+      return { passed: 0, failed: 1 }
+    }
+
+    var results = []
+    var effectLog = []
+    var classLog = []
+    var caught = { boundary: false }
+
+    function check(name, fn) {
+      try {
+        fn()
+        results.push({ ok: true, name: name })
+      } catch (error) {
+        results.push({ ok: false, name: name, error: error })
+      }
+    }
+    function assert(condition, message) {
+      if (!condition) throw new Error(message || 'assertion failed')
+    }
+    function assertEqual(actual, expected, message) {
+      if (actual !== expected) {
+        throw new Error((message || 'not equal') + '：期望 ' + JSON.stringify(expected) + '，实际 ' + JSON.stringify(actual))
+      }
+    }
+    function clickId(id) {
+      var node = document.getElementById(id)
+      assert(node, '找不到元素 #' + id)
+      node.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
+    }
+    function textOf(id) {
+      var node = document.getElementById(id)
+      assert(node, '找不到元素 #' + id)
+      return node.textContent
+    }
+
+    function HookDemo() {
+      var state = R.useState(0)
+      var count = state[0]
+      var setCount = state[1]
+      var textState = R.useState('')
+      var text = textState[0]
+      var setText = textState[1]
+      var renders = R.useRef(0)
+      renders.current += 1
+      R.useEffect(function () {
+        effectLog.push('effect')
+        return function () { effectLog.push('cleanup') }
+      }, [])
+      var doubled = R.useMemo(function () { return count * 2 }, [count])
+      var inc = R.useCallback(function () {
+        setCount(function (value) { return value + 1 })
+      }, [])
+      var objRef = R.useRef(null)
+      return R.createElement(
+        'div',
+        { id: 'sd-root', 'data-test': 'demo', style: { display: 'flex', gap: 4 } },
+        R.createElement('button', { id: 'sd-inc', onClick: inc }, 'inc'),
+        R.createElement('input', {
+          id: 'sd-input',
+          value: text,
+          onChange: function (event) { setText(event.target.value) },
+        }),
+        R.createElement('span', { id: 'sd-count' }, String(count)),
+        R.createElement('span', { id: 'sd-double' }, String(doubled)),
+        R.createElement('span', { id: 'sd-text' }, text),
+        R.createElement('span', { id: 'sd-renders' }, String(renders.current)),
+        R.createElement('span', { id: 'sd-style', style: { width: 40, lineHeight: 2, opacity: 0.5 } }, 'styled'),
+        R.createElement('button', { id: 'sd-aria', 'aria-pressed': true, 'data-flag': 'yes' }, 'aria'),
+        R.createElement('div', { id: 'sd-ref-holder', ref: objRef }, 'ref')
+      )
+    }
+
+    function ClassDemo() {
+      return class ClassDemo extends R.Component {
+        constructor(props) {
+          super(props)
+          this.state = { n: 1 }
+          classLog.push('ctor')
+        }
+        componentDidMount() { classLog.push('didMount') }
+        componentWillUnmount() { classLog.push('willUnmount') }
+        render() {
+          var self = this
+          return R.createElement(
+            'div',
+            { id: 'cd-root' },
+            R.createElement('span', { id: 'cd-n' }, String(this.state.n)),
+            R.createElement('button', {
+              id: 'cd-inc',
+              onClick: function () { self.setState({ n: self.state.n + 1 }) },
+            }, '+')
+          )
+        }
+      }
+    }
+
+    function BoundaryDemo() {
+      return class BoundaryDemo extends R.Component {
+        constructor(props) {
+          super(props)
+          this.state = { failed: false }
+        }
+        static getDerivedStateFromError() { return { failed: true } }
+        componentDidCatch() { caught.boundary = true }
+        render() {
+          if (this.state.failed) {
+            return R.createElement('div', { id: 'bd-fallback' }, 'fallback')
+          }
+          return this.props.children
+        }
+      }
+    }
+    function Bomb() {
+      throw new Error('self-test bomb')
+    }
+
+    var host = document.createElement('div')
+    $('selftest-sandbox').appendChild(host)
+
+    try {
+      R.render(R.createElement(HookDemo, null), host)
+
+      check('元素 / className / style 对象渲染为真实 DOM', function () {
+        var rootNode = $('sd-root')
+        assert(rootNode, 'root 未渲染')
+        assertEqual(rootNode.getAttribute('data-test'), 'demo')
+        var styled = $('sd-style')
+        assertEqual(styled.style.width, '40px')
+        assertEqual(styled.style.lineHeight, '2')
+        assertEqual(styled.style.opacity, '0.5')
+      })
+
+      check('aria-* / data-* 属性（含布尔值）', function () {
+        assertEqual($('sd-aria').getAttribute('aria-pressed'), 'true')
+        assertEqual($('sd-aria').getAttribute('data-flag'), 'yes')
+      })
+
+      check('onClick 触发 setState 并同步重渲染', function () {
+        assertEqual(textOf('sd-count'), '0')
+        clickId('sd-inc')
+        assertEqual(textOf('sd-count'), '1')
+        assertEqual(textOf('sd-double'), '2')
+        assertEqual(textOf('sd-renders'), '2')
+      })
+
+      check('input value + onChange 受控更新', function () {
+        var input = $('sd-input')
+        input.value = 'abc'
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        assertEqual(textOf('sd-text'), 'abc')
+        assertEqual($('sd-input').value, 'abc')
+      })
+
+      check('useCallback 引用稳定（按钮重渲染后仍可点）', function () {
+        clickId('sd-inc')
+        assertEqual(textOf('sd-count'), '2')
+      })
+
+      check('useEffect 在挂载后执行，deps=[] 不重复执行', function () {
+        assertEqual(effectLog.filter(function (x) { return x === 'effect' }).length, 1)
+      })
+
+      check('对象 ref 指向真实 DOM 节点', function () {
+        var holder = $('sd-ref-holder')
+        assert(holder, 'ref 容器不存在')
+        assertEqual(typeof holder.getAttribute, 'function')
+      })
+    } catch (error) {
+      check('HookDemo 渲染流程', function () { throw error })
+    }
+
+    check('类组件 state / setState / componentDidMount / componentWillUnmount', function () {
+      var classHost = document.createElement('div')
+      $('selftest-sandbox').appendChild(classHost)
+      var DemoClass = ClassDemo()
+      R.render(R.createElement(DemoClass, null), classHost)
+      assertEqual(textOf('cd-n'), '1')
+      clickId('cd-inc')
+      assertEqual(textOf('cd-n'), '2')
+      assert(classLog.indexOf('ctor') >= 0, '构造函数未执行')
+      assert(classLog.indexOf('didMount') >= 0, 'componentDidMount 未执行')
+      R.unmountComponentAtNode(classHost)
+      assert(classLog.indexOf('willUnmount') >= 0, 'componentWillUnmount 未执行')
+      assert(!document.getElementById('cd-root'), '卸载后 DOM 应移除')
+      classHost.remove()
+    })
+
+    check('卸载执行 useEffect cleanup（成对出现）', function () {
+      var hookHost = document.createElement('div')
+      $('selftest-sandbox').appendChild(hookHost)
+      R.render(R.createElement(HookDemo, null), hookHost)
+      R.unmountComponentAtNode(hookHost)
+      var effects = effectLog.filter(function (x) { return x === 'effect' }).length
+      var cleanups = effectLog.filter(function (x) { return x === 'cleanup' }).length
+      assertEqual(effects, 2, '挂载两次应各执行一次 effect')
+      assertEqual(cleanups, 2, '卸载两次应各执行一次 cleanup')
+      hookHost.remove()
+      R.unmountComponentAtNode(host)
+    })
+
+    check('Fragment 展开为多个真实节点', function () {
+      var fragHost = document.createElement('div')
+      $('selftest-sandbox').appendChild(fragHost)
+      R.render(
+        R.createElement('div', null,
+          R.createElement(R.Fragment, null,
+            R.createElement('span', { id: 'frag-a' }, 'a'),
+            R.createElement('span', { id: 'frag-b' }, 'b')
+          )
+        ),
+        fragHost
+      )
+      assert($('frag-a'), 'Fragment 第一个子节点未渲染')
+      assert($('frag-b'), 'Fragment 第二个子节点未渲染')
+      R.unmountComponentAtNode(fragHost)
+      fragHost.remove()
+    })
+
+    check('嵌套组件 + 条件 null children', function () {
+      var nestHost = document.createElement('div')
+      $('selftest-sandbox').appendChild(nestHost)
+      function Inner(props) { return R.createElement('span', { id: 'nest-inner' }, props.text) }
+      R.render(
+        R.createElement('div', { id: 'nest-outer' },
+          R.createElement(Inner, { text: 'inner' }),
+          false,
+          null,
+          R.createElement('span', { id: 'nest-last' }, 'last')
+        ),
+        nestHost
+      )
+      assertEqual(textOf('nest-inner'), 'inner')
+      assertEqual(textOf('nest-last'), 'last')
+      assertEqual(document.querySelectorAll('input,button').length >= 0, true)
+      R.unmountComponentAtNode(nestHost)
+      nestHost.remove()
+    })
+
+    check('onKeyDown 事件冒泡到组件', function () {
+      var keyHost = document.createElement('div')
+      $('selftest-sandbox').appendChild(keyHost)
+      var seen = []
+      function KeyDemo() {
+        return R.createElement('div', {
+          id: 'key-root',
+          tabIndex: 0,
+          onKeyDown: function (event) { seen.push(event.key) },
+        }, R.createElement('span', { id: 'key-inner' }, 'k'))
+      }
+      R.render(R.createElement(KeyDemo, null), keyHost)
+      $('key-inner').dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true, cancelable: true }))
+      assertEqual(seen.join(','), 'x')
+      R.unmountComponentAtNode(keyHost)
+      keyHost.remove()
+    })
+
+    check('错误边界（getDerivedStateFromError + componentDidCatch）', function () {
+      var boundaryHost = document.createElement('div')
+      $('selftest-sandbox').appendChild(boundaryHost)
+      var Boundary = BoundaryDemo()
+      R.render(R.createElement(Boundary, null, R.createElement(Bomb, null)), boundaryHost)
+      assert(document.getElementById('bd-fallback'), '错误边界 fallback 未渲染')
+      assert(caught.boundary, 'componentDidCatch 未执行')
+      R.unmountComponentAtNode(boundaryHost)
+      boundaryHost.remove()
+    })
+
+    /* 汇总 */
+    var passed = results.filter(function (item) { return item.ok }).length
+    var failed = results.length - passed
+    clear(list)
+    results.forEach(function (item) {
+      var li = append(list, 'li', item.ok ? 'ok' : 'bad')
+      li.textContent = (item.ok ? TEXT.ok : TEXT.bad) + ' ' + item.name +
+        (item.ok ? '' : '：' + (item.error && item.error.message ? item.error.message : item.error))
+    })
+    summary.className = 'line ' + (failed ? 'bad' : 'ok')
+    summary.textContent = 'fake-react 自检：' + passed + '/' + results.length + ' 通过' + (failed ? '（' + failed + ' 失败）' : '')
+    return { passed: passed, failed: failed }
+  }
+
+  /* ================================================================== *
+   * 二、通过假宿主契约加载 client.js 并渲染真实组件
+   * ================================================================== */
+
+  var gameRoot = $('game-root')
+  var stage = $('stage')
+  var registered = null
+  var R = window.FakeReact
+
+  function setBootLine(text, cls) {
+    var node = $('boot-status')
+    node.textContent = text
+    node.className = 'line' + (cls ? ' ' + cls : '')
+  }
+  function addBootCheck(text, ok) {
+    var list = $('boot-checks')
+    var li = append(list, 'li', ok ? 'ok' : 'bad')
+    li.textContent = (ok ? TEXT.ok : TEXT.bad) + ' ' + text
+    return ok
+  }
+
+  function bootClient() {
+    var def = window.__gameDefinition
+    clear($('boot-checks'))
+    if (!def) {
+      setBootLine(window.__clientScriptError
+        ? window.__clientScriptError
+        : 'client.js 未就绪：window.__gameDefinition 不存在（文件不存在 / 尚未完成 / 加载顺序错误）', 'bad')
+      return false
+    }
+    if (!R) {
+      setBootLine('fake-react.js 未加载，无法渲染组件', 'bad')
+      return false
+    }
+    try {
+      addBootCheck('__ModuleLoader__.load 收到 definition', true)
+      addBootCheck('definition.id === "@local/dsh-game-quoridor"', def.id === '@local/dsh-game-quoridor')
+      addBootCheck('definition.factory 是函数', typeof def.factory === 'function')
+
+      var requireShim = function (name) {
+        if (name === 'react') return R
+        throw new Error('预览页没有模块：' + name)
+      }
+      var module = def.factory(requireShim)
+      addBootCheck('factory(require) 返回 { inject, apply }', !!module && Array.isArray(module.inject) && typeof module.apply === 'function')
+      addBootCheck('inject 只声明 slots', Array.isArray(module.inject) && module.inject.length === 1 && module.inject[0] === 'slots')
+
+      var ctx = {
+        slots: {
+          inject: function (name, callback) {
+            window.__injectedName = name
+            callback()
+          },
+          register: function (entry, Component) {
+            registered = { entry: entry, Component: Component }
+            window.__registered = registered
+            return function unregister() {}
+          },
+        },
+      }
+      module.apply(ctx)
+      addBootCheck('ctx.slots.inject 调用 "game.stage" 并触发 register', !!registered && window.__injectedName === 'game.stage')
+      if (!registered) {
+        setBootLine('apply() 没有调用 slots.register —— 注册失败', 'bad')
+        return false
+      }
+
+      var entry = registered.entry
+      addBootCheck('entry.name === "game.stage" / id === "quoridor"', entry.name === 'game.stage' && entry.id === 'quoridor')
+      addBootCheck('entry.label() === "墙棋"', typeof entry.label === 'function' && entry.label() === '墙棋')
+      var matched = entry.select({ gameId: 'quoridor' })
+      var other = entry.select({ gameId: '2048' })
+      var nothing = entry.select(null)
+      addBootCheck('select({gameId:"quoridor"}) 非 null', matched !== null && matched !== undefined)
+      addBootCheck('select({gameId:"2048"}) === null', other === null)
+      addBootCheck('select(null) === null', nothing === null)
+      addBootCheck('seam window.__DSH_GAME_QUORIDOR__ 存在', !!window.__DSH_GAME_QUORIDOR__)
+      addBootCheck('seam 暴露 createGame / wallSeg / sanitizeSave', !!window.__DSH_GAME_QUORIDOR__ &&
+        typeof window.__DSH_GAME_QUORIDOR__.createGame === 'function' &&
+        typeof window.__DSH_GAME_QUORIDOR__.wallSeg === 'function' &&
+        typeof window.__DSH_GAME_QUORIDOR__.sanitizeSave === 'function')
+
+      R.render(R.createElement(registered.Component, { matched: matched }), gameRoot)
+      addBootCheck('用 fake-react 渲染注册组件（props: {matched}）', !!gameRoot.querySelector('[data-dsh-game="' + window.__DSH_GAME_QUORIDOR__.GAME_ID + '"]'))
+      setBootLine('client.js 已加载并渲染；registration 校验完成', 'ok')
+
+      /* 更新页面状态 */
+      var seam = window.__DSH_GAME_QUORIDOR__
+      window.__previewSaveKey = seam.STORE_KEY
+      return true
+    } catch (error) {
+      setBootLine('启动失败：' + (error && error.message ? error.message : String(error)), 'bad')
+      window.__recordPreviewError('error', 'preview boot failed: ' + (error && error.stack ? error.stack : error))
+      return false
+    }
+  }
+
+  /* ================================================================== *
+   * 三、页面控制：主题 / 舞台尺寸 / 重挂 / 清档
+   * ================================================================== */
+
+  var currentTheme = 'light'
+  function setTheme(next) {
+    currentTheme = next
+    document.body.setAttribute('data-theme', next)
+    var button = $('theme-toggle')
+    button.setAttribute('aria-pressed', String(next === 'dark'))
+    button.textContent = next === 'dark' ? '切换主题：暗色' : '切换主题：亮色'
+    /* 棋盘自配色、不依赖 token；但让 client.js 重新算一次布局更接近真实切主题。 */
+    window.dispatchEvent(new Event('resize'))
+  }
+
+  $('theme-toggle').addEventListener('click', function () {
+    setTheme(currentTheme === 'dark' ? 'light' : 'dark')
+  })
+
+  function setStageSize(width, height) {
+    stage.style.width = width + 'px'
+    stage.style.height = height + 'px'
+    $('stage-size-label').textContent = width + ' × ' + height
+    var buttons = document.querySelectorAll('#size-row button')
+    for (var i = 0; i < buttons.length; i += 1) {
+      var button = buttons[i]
+      button.setAttribute('aria-pressed', String(Number(button.getAttribute('data-w')) === width && Number(button.getAttribute('data-h')) === height))
+    }
+    window.dispatchEvent(new Event('resize'))
+  }
+  var sizeButtons = document.querySelectorAll('#size-row button')
+  for (var sizeIndex = 0; sizeIndex < sizeButtons.length; sizeIndex += 1) {
+    sizeButtons[sizeIndex].addEventListener('click', function (event) {
+      setStageSize(Number(event.currentTarget.getAttribute('data-w')), Number(event.currentTarget.getAttribute('data-h')))
+    })
+  }
+
+  function renderGame() {
+    if (!registered) return
+    var seam = window.__DSH_GAME_QUORIDOR__
+    var matched = registered.entry.select({ gameId: seam ? seam.GAME_ID : 'quoridor' })
+    R.render(R.createElement(registered.Component, { matched: matched }), gameRoot)
+  }
+  function unmountGame() {
+    if (!R) return
+    R.unmountComponentAtNode(gameRoot)
+    while (gameRoot.firstChild) gameRoot.removeChild(gameRoot.firstChild)
+  }
+  function remountGame() {
+    if (!registered) return
+    try {
+      unmountGame()
+      renderGame()
+    } catch (error) {
+      setBootLine('重挂失败：' + (error && error.message ? error.message : String(error)), 'bad')
+      window.__recordPreviewError('error', 'preview remount failed: ' + (error && error.stack ? error.stack : error))
+    }
+  }
+  $('remount').addEventListener('click', remountGame)
+  $('clear-save').addEventListener('click', function () {
+    if (!registered) return
+    try {
+      /* 先卸载：client.js 的 destroy() 会把当前局面再写一次存档；
+       * 卸载完成后再删 key，才能真的回到「无存档 → 新局」。 */
+      unmountGame()
+      var seam = window.__DSH_GAME_QUORIDOR__
+      if (seam) window.localStorage.removeItem(seam.STORE_KEY)
+      renderGame()
+    } catch (error) {
+      setBootLine('清档重挂失败：' + (error && error.message ? error.message : String(error)), 'bad')
+      window.__recordPreviewError('error', 'preview clear-save failed: ' + (error && error.stack ? error.stack : error))
+    }
+  })
+
+  /* ================================================================== *
+   * 四、实时状态 + 错误面板
+   * ================================================================== */
+
+  function readCanvas() {
+    return gameRoot.querySelector('canvas')
+  }
+  function readSave() {
+    try {
+      var seam = window.__DSH_GAME_QUORIDOR__
+      if (!seam) return null
+      var raw = window.localStorage.getItem(seam.STORE_KEY)
+      return raw ? JSON.parse(raw) : null
+    } catch (error) {
+      return null
+    }
+  }
+  function readStatusText() {
+    var node = gameRoot.querySelector('[role="status"]')
+    return node ? node.textContent : ''
+  }
+
+  function refreshLiveStatus() {
+    var node = $('live-status')
+    var seam = window.__DSH_GAME_QUORIDOR__
+    var canvas = readCanvas()
+    var status = readStatusText()
+    var save = readSave()
+    if (!seam) {
+      node.textContent = 'seam 未安装'
+      return
+    }
+    var parts = []
+    parts.push('状态：' + (status || '（未渲染）'))
+    if (canvas) {
+      parts.push('canvas CSS ' + canvas.style.width + ' × ' + canvas.style.height)
+      parts.push('backing ' + canvas.width + ' × ' + canvas.height)
+      var rect = canvas.getBoundingClientRect()
+      parts.push('rect ' + Math.round(rect.width) + '×' + Math.round(rect.height))
+    } else {
+      parts.push('canvas 未挂载')
+    }
+    if (save && save.game && save.game.st) {
+      parts.push('turn=' + save.game.st.turn + ' hist=' + (save.game.hist ? save.game.hist.length : 0))
+    }
+    parts.push('mode=' + (save ? save.mode : '?'))
+    node.textContent = parts.join(' · ')
+  }
+
+  function refreshErrorPanel() {
+    $('err-count').textContent = String(window.__errors.length)
+    $('rej-count').textContent = String(window.__rejections.length)
+    $('console-err-count').textContent = String(window.__consoleErrors.length)
+    $('err-count').className = 'err-count ' + (window.__errors.length ? 'bad' : 'ok')
+    $('rej-count').className = 'err-count ' + (window.__rejections.length ? 'bad' : 'ok')
+    $('console-err-count').className = 'err-count ' + (window.__consoleErrors.length ? 'bad' : 'ok')
+    var lines = []
+    window.__errors.forEach(function (entry) {
+      lines.push('[window.error] ' + entry.message + (entry.extra && entry.extra.stack ? '\n' + entry.extra.stack : ''))
+    })
+    window.__rejections.forEach(function (entry) {
+      lines.push('[unhandledrejection] ' + entry.message + (entry.extra && entry.extra.stack ? '\n' + entry.extra.stack : ''))
+    })
+    window.__consoleErrors.forEach(function (entry) {
+      lines.push('[console.error] ' + entry.message)
+    })
+    $('err-detail').textContent = lines.length ? lines.join('\n\n') : '（无）'
+  }
+
+  /* ================================================================== *
+   * 五、给 browser_eval 用的预览辅助（dev-only；等价于「真人用手点」）
+   * ================================================================== */
+
+  function canvasRect() {
+    var canvas = readCanvas()
+    return canvas ? canvas.getBoundingClientRect() : null
+  }
+  function logicalToClient(x, y) {
+    var rect = canvasRect()
+    if (!rect || !rect.width) return null
+    var seam = window.__DSH_GAME_QUORIDOR__
+    return {
+      clientX: rect.left + (x * rect.width) / seam.LOGICAL_SIZE,
+      clientY: rect.top + (y * rect.height) / seam.LOGICAL_SIZE,
+    }
+  }
+  function pointerDown(x, y) {
+    var point = logicalToClient(x, y)
+    if (!point) throw new Error('canvas 未就绪，拿不到 rect')
+    var canvas = readCanvas()
+    var event
+    try {
+      event = new PointerEvent('pointerdown', {
+        clientX: point.clientX,
+        clientY: point.clientY,
+        bubbles: true,
+        cancelable: true,
+        pointerId: 1,
+        pointerType: 'mouse',
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+      })
+    } catch (error) {
+      event = new MouseEvent('pointerdown', {
+        clientX: point.clientX,
+        clientY: point.clientY,
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+      })
+    }
+    canvas.dispatchEvent(event)
+  }
+  function geometry() {
+    var seam = window.__DSH_GAME_QUORIDOR__
+    return { CELL: seam.CELL, PAD: seam.PAD, LOGICAL_SIZE: seam.LOGICAL_SIZE, H: seam.Q.H, V: seam.Q.V }
+  }
+
+  window.__preview = {
+    definition: function () { return window.__gameDefinition || null },
+    registered: function () { return registered },
+    errors: function () {
+      return {
+        windowErrors: window.__errors.slice(),
+        rejections: window.__rejections.slice(),
+        consoleErrors: window.__consoleErrors.slice(),
+      }
+    },
+    save: readSave,
+    statusText: readStatusText,
+    canvas: function () { return readCanvas() },
+    canvasRect: canvasRect,
+    setStage: setStageSize,
+    setTheme: setTheme,
+    remount: remountGame,
+    clearSaveAndRemount: function () { $('clear-save').click() },
+    /** 点格子中心（row/col 0..8） */
+    clickCell: function (row, col) {
+      var g = geometry()
+      pointerDown(g.PAD + col * g.CELL + g.CELL / 2, g.PAD + row * g.CELL + g.CELL / 2)
+    },
+    /** 点一面墙：o 传 'H'/'V'，也可以用数字 0/1 */
+    clickWall: function (o, r, c) {
+      var g = geometry()
+      var orientation = o === 'V' || o === 1 || o === g.V ? g.V : g.H
+      var seg = window.__DSH_GAME_QUORIDOR__.wallSeg(orientation, r, c)
+      var x = (seg[0] + seg[2]) / 2
+      var y = (seg[1] + seg[3]) / 2
+      /* 稍微偏向主轴，让 wallAt 选到想要的朝向（墙心 dx=dy=0 时默认竖墙）。 */
+      if (orientation === g.H) x += g.CELL * 0.25
+      else y += g.CELL * 0.25
+      pointerDown(x, y)
+    },
+    /** 在 canvas 上派发键盘事件（会冒泡到组件根节点 onKeyDown） */
+    pressKey: function (key) {
+      var canvas = readCanvas()
+      if (!canvas) throw new Error('canvas 未就绪')
+      var event = new KeyboardEvent('keydown', { key: key, bubbles: true, cancelable: true })
+      canvas.dispatchEvent(event)
+      return event.defaultPrevented
+    },
+    /** 按可见文本点按钮（在游戏组件内找） */
+    clickButton: function (label) {
+      var buttons = gameRoot.querySelectorAll('button')
+      for (var i = 0; i < buttons.length; i += 1) {
+        var text = (buttons[i].textContent || '').replace(/\s+/g, ' ').trim()
+        if (text === label || text.indexOf(label) >= 0) {
+          buttons[i].click()
+          return text
+        }
+      }
+      throw new Error('找不到按钮：' + label)
+    },
+    buttonLabels: function () {
+      var out = []
+      var buttons = gameRoot.querySelectorAll('button')
+      for (var i = 0; i < buttons.length; i += 1) {
+        out.push((buttons[i].textContent || '').replace(/\s+/g, ' ').trim())
+      }
+      return out
+    },
+    rulesOpen: function () { return !!gameRoot.querySelector('[role="dialog"]') },
+    closeRules: function () {
+      var close = gameRoot.querySelector('[role="dialog"] button[aria-label="关闭"]')
+      if (close) close.click()
+    },
+    /** 读 range 滑杆并模拟拖动 */
+    setSpeedSlider: function (value) {
+      var input = gameRoot.querySelector('input[type="range"]')
+      if (!input) throw new Error('当前模式没有速度滑杆')
+      input.value = String(value)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      return input.value
+    },
+  }
+
+  /* ================================================================== *
+   * 六、启动顺序
+   * ================================================================== */
+
+  var selfTest = { passed: 0, failed: 0 }
+  try {
+    selfTest = runFakeReactSelfTest()
+  } catch (error) {
+    $('selftest-summary').className = 'line bad'
+    $('selftest-summary').textContent = 'fake-react 自检直接抛错：' + (error && error.message ? error.message : error)
+  }
+  window.__selfTestResult = selfTest
+
+  var booted = bootClient()
+  window.__previewBooted = booted
+
+  refreshLiveStatus()
+  refreshErrorPanel()
+  window.setInterval(refreshLiveStatus, 500)
+  window.setInterval(refreshErrorPanel, 500)
+})()
+</script>
+</body>
+</html>

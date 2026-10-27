@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>俄罗斯方块 · DSH 游戏包 dev 预览（非宿主验收）</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 20px;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--dsw-alias-bg-base);
+    color: var(--dsw-alias-label-primary);
+    transition: background-color .15s ease, color .15s ease;
+  }
+  body[data-theme="light"] {
+    --dsw-alias-bg-base: #f4f5f7;
+    --dsw-alias-bg-layer-2: #ffffff;
+    --dsw-alias-border-l1: rgba(0, 0, 0, 0.14);
+    --dsw-alias-label-primary: #1f2328;
+    --dsw-alias-label-secondary: #4c5560;
+    --dsw-alias-label-tertiary: #7b8494;
+    --dsw-alias-brand-primary: #2f6feb;
+  }
+  body[data-theme="dark"] {
+    --dsw-alias-bg-base: #17191c;
+    --dsw-alias-bg-layer-2: #22252a;
+    --dsw-alias-border-l1: rgba(255, 255, 255, 0.16);
+    --dsw-alias-label-primary: #e8edf4;
+    --dsw-alias-label-secondary: #b6c0cf;
+    --dsw-alias-label-tertiary: #8b95a5;
+    --dsw-alias-brand-primary: #5b9dff;
+  }
+  .layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; max-width: 1180px; margin: 0 auto; }
+  .stage-wrap { display: flex; flex-direction: column; gap: 8px; }
+  .stage {
+    width: min(860px, calc(100vw - 40px));
+    height: min(660px, calc(100vh - 120px));
+    min-height: 360px;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--dsw-alias-bg-base);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+  }
+  .note { margin: 0; font-size: 12px; opacity: 0.7; }
+  .side { flex: 1 1 280px; min-width: 250px; display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+  .stat { padding: 6px 10px; border-radius: 8px; background: var(--dsw-alias-bg-layer-2); border: 1px solid var(--dsw-alias-border-l1); }
+  .stat b { font-variant-numeric: tabular-nums; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font: inherit;
+    font-size: 13px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--dsw-alias-border-l1);
+    background: var(--dsw-alias-bg-layer-2);
+    color: inherit;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--dsw-alias-brand-primary); }
+  kbd { padding: 1px 5px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 4px; font-size: 12px; }
+  pre {
+    margin: 0;
+    min-height: 60px;
+    max-height: 190px;
+    overflow: auto;
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--dsw-alias-bg-layer-2);
+    border: 1px solid var(--dsw-alias-border-l1);
+    font-size: 12px;
+    white-space: pre-wrap;
+  }
+  .hint { font-size: 12.5px; line-height: 1.6; opacity: 0.85; }
+</style>
+</head>
+<body data-theme="light">
+<div class="layout">
+  <div class="stage-wrap">
+    <div id="stage" class="stage"></div>
+    <p class="note">开发预览：只验证 canvas 渲染与运行时 API，<strong>不是</strong>宿主内验收。</p>
+  </div>
+  <aside class="side">
+    <h1>俄罗斯方块 · dev preview</h1>
+    <div class="stats">
+      <div class="stat">分数 <b id="score">0</b></div>
+      <div class="stat">消除 <b id="lines">0</b></div>
+      <div class="stat">等级 <b id="level">1</b></div>
+      <div class="stat">用时 <b id="time">0:00</b></div>
+      <div class="stat">状态 <b id="status">进行中</b></div>
+    </div>
+    <div class="row">
+      <button id="pause">暂停 / 继续</button>
+      <button id="restart">重开</button>
+      <button id="demo">载入演示盘面</button>
+      <button id="over">载入结束画面</button>
+      <button id="theme">切换页面主题</button>
+    </div>
+    <div class="hint">
+      点一下棋盘聚焦后：<kbd>←</kbd><kbd>→</kbd> 移动，<kbd>↓</kbd> 软降，
+      <kbd>↑</kbd>/<kbd>X</kbd> 顺时针，<kbd>Z</kbd> 逆时针，<kbd>空格</kbd> 硬降，
+      <kbd>C</kbd>/<kbd>Shift</kbd> 暂存，<kbd>P</kbd> 暂停，<kbd>R</kbd> 重开。<br>
+      亮/暗页面都要能看清棋盘；切到别的标签页再回来应自动暂停/恢复且不跳帧。
+    </div>
+    <pre id="log">ready</pre>
+  </aside>
+</div>
+
+<script>
+  // Test seam: lets this page import the real client.js without the DSH module table.
+  window.__DSH_GAME_TETRIS_TEST__ = true
+  window.__ModuleLoader__ = {
+    load(definition) { window.__loadedGameDefinition = definition },
+  }
+  window.addEventListener('error', function (event) {
+    var log = document.getElementById('log')
+    log.textContent += '\nwindow.error: ' + (event.message || event.error)
+  })
+  window.addEventListener('unhandledrejection', function (event) {
+    var log = document.getElementById('log')
+    log.textContent += '\nunhandledrejection: ' + (event.reason && event.reason.message ? event.reason.message : event.reason)
+  })
+</script>
+<script src="../client.js"></script>
+<script>
+  (function () {
+    'use strict'
+    var log = document.getElementById('log')
+    var scoreEl = document.getElementById('score')
+    var linesEl = document.getElementById('lines')
+    var levelEl = document.getElementById('level')
+    var timeEl = document.getElementById('time')
+    var statusEl = document.getElementById('status')
+    var stage = document.getElementById('stage')
+    var api = window.__DSH_GAME_TETRIS__
+    var game = null
+
+    function appendLog(message) {
+      log.textContent += '\n' + message
+      log.scrollTop = log.scrollHeight
+    }
+
+    function renderState(state) {
+      scoreEl.textContent = String(state.score)
+      linesEl.textContent = String(state.lines)
+      levelEl.textContent = String(state.level)
+      timeEl.textContent = api.formatTime(state.elapsedMs)
+      if (state.over) statusEl.textContent = '游戏结束'
+      else if (state.paused) statusEl.textContent = '已暂停'
+      else statusEl.textContent = state.focused ? '进行中' : '等待聚焦'
+    }
+
+    function boot() {
+      if (game) {
+        game.destroy()
+        game = null
+      }
+      try {
+        game = api.createGame(stage, {
+          onState: renderState,
+          onError: function (message) { appendLog('game onError: ' + message) },
+        })
+        appendLog('booted; seam=' + (api ? 'yes' : 'no'))
+        game.focus()
+      } catch (error) {
+        appendLog('boot failed: ' + (error && error.message ? error.message : error))
+      }
+    }
+
+    document.getElementById('pause').addEventListener('click', function () {
+      if (!game) return
+      game.togglePause()
+      game.focus()
+    })
+    document.getElementById('restart').addEventListener('click', function () {
+      if (!game) return
+      game.newGame()
+      game.focus()
+    })
+    document.getElementById('theme').addEventListener('click', function () {
+      var dark = document.body.dataset.theme === 'dark'
+      document.body.dataset.theme = dark ? 'light' : 'dark'
+      appendLog('theme -> ' + document.body.dataset.theme)
+    })
+    document.getElementById('demo').addEventListener('click', function () {
+      try {
+        if (game) {
+          game.destroy()
+          game = null
+        }
+        var board = api.createEmptyBoard()
+        var heights = [4, 7, 2, 5, 8, 3, 6, 1, 0, 5]
+        for (var col = 0; col < api.COLS; col += 1) {
+          for (var row = api.ROWS - heights[col]; row < api.ROWS; row += 1) {
+            board[row][col] = (col % 7) + 1
+          }
+        }
+        window.localStorage.setItem('dsh.game.tetris.v1', JSON.stringify({
+          schemaVersion: 1,
+          board: board,
+          current: { type: 'T', rot: 0, x: 3, y: 1 },
+          queue: ['I', 'O', 'T', 'S', 'Z'],
+          bag: ['J', 'L'],
+          hold: 'S',
+          canHold: true,
+          score: 4230,
+          lines: 37,
+          level: 4,
+          playMs: 245000,
+          over: false,
+          paused: false,
+        }))
+        boot()
+      } catch (error) {
+        appendLog('demo board failed: ' + (error && error.message ? error.message : error))
+      }
+    })
+    document.getElementById('over').addEventListener('click', function () {
+      try {
+        if (game) {
+          game.destroy()
+          game = null
+        }
+        var board = api.createEmptyBoard()
+        for (var row = 8; row < api.ROWS; row += 1) {
+          for (var col = 0; col < api.COLS; col += 1) {
+            if ((row + col) % 5 !== 0) board[row][col] = ((row + col) % 7) + 1
+          }
+        }
+        window.localStorage.setItem('dsh.game.tetris.v1', JSON.stringify({
+          schemaVersion: 1,
+          board: board,
+          current: null,
+          queue: ['I', 'O', 'T', 'S', 'Z'],
+          bag: [],
+          hold: 'J',
+          canHold: true,
+          score: 18920,
+          lines: 88,
+          level: 9,
+          playMs: 912000,
+          over: true,
+          paused: false,
+        }))
+        boot()
+      } catch (error) {
+        appendLog('game-over board failed: ' + (error && error.message ? error.message : error))
+      }
+    })
+
+    boot()
+  })()
+</script>
+</body>
+</html>

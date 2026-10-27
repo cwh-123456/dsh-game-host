@@ -1,0 +1,1189 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>接龙 Solitaire · DSH 游戏包 dev 预览（非宿主验收）</title>
+<style>
+  /* ------------------------------------------------------------------
+   * 页面自己定义两套 DSH token（值取合理近似，仅用于 dev 预览）。
+   * 工具栏/按钮/弹窗用这些 token，所以切换主题能直接验证可读性。
+   * ---------------------------------------------------------------- */
+  :root {
+    color-scheme: light;
+    --dsw-alias-bg-base: #ffffff;
+    --dsw-alias-bg-layer-1: #f7f8fa;
+    --dsw-alias-bg-layer-2: #f1f3f5;
+    --dsw-alias-label-primary: #1f2328;
+    --dsw-alias-label-secondary: #57606a;
+    --dsw-alias-label-tertiary: #8b949e;
+    --dsw-alias-border-l1: #d0d7de;
+    --dsw-alias-border-l2: #b6bec8;
+    --dsw-alias-brand-primary: #2f81f7;
+    --dsw-alias-interactive-bg-hover: #eceff2;
+    --dsw-alias-interactive-bg-active: #dfe4e9;
+    --dsw-alias-bg-mask-1: rgba(9, 12, 16, 0.38);
+    --page-bg: #e9ecf0;
+    --page-fg: #1f2328;
+    --page-card: #ffffff;
+    --page-line: #d5dbe2;
+    --ok: #1a7f37;
+    --bad: #cf222e;
+  }
+  body[data-theme="dark"] {
+    color-scheme: dark;
+    --dsw-alias-bg-base: #17191c;
+    --dsw-alias-bg-layer-1: #1c1f24;
+    --dsw-alias-bg-layer-2: #21262d;
+    --dsw-alias-label-primary: #e6edf3;
+    --dsw-alias-label-secondary: #a7b0ba;
+    --dsw-alias-label-tertiary: #7d8590;
+    --dsw-alias-border-l1: #30363d;
+    --dsw-alias-border-l2: #414a55;
+    --dsw-alias-brand-primary: #4b8ef7;
+    --dsw-alias-interactive-bg-hover: #2a313a;
+    --dsw-alias-interactive-bg-active: #333c47;
+    --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.55);
+    --page-bg: #101216;
+    --page-fg: #e6edf3;
+    --page-card: #1b1e23;
+    --page-line: #2b3139;
+    --ok: #3fb950;
+    --bad: #f85149;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    padding: 16px;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font: 13px/1.55 "Segoe UI", system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+  }
+
+  .layout {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 1680px;
+    margin: 0 auto;
+  }
+  .preview-col { display: flex; flex-direction: column; gap: 8px; }
+  .stage-label { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 12px; opacity: .8; }
+  .stage-label b { font-size: 13px; opacity: 1; }
+  .stage {
+    position: relative;
+    width: 720px;
+    height: 600px;
+    background: var(--dsw-alias-bg-base);
+    border: 1px solid var(--page-line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .18);
+  }
+  #game-root { width: 100%; height: 100%; }
+  .side { flex: 0 1 430px; min-width: 360px; display: flex; flex-direction: column; gap: 10px; }
+  h1 { font-size: 18px; margin: 0 0 2px; }
+  h1 small { font-size: 12px; font-weight: 400; opacity: .6; }
+  h2 { font-size: 12.5px; margin: 0 0 6px; letter-spacing: .02em; text-transform: uppercase; opacity: .75; }
+  .card {
+    background: var(--page-card);
+    border: 1px solid var(--page-line);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .row + .row { margin-top: 6px; }
+  button {
+    font: inherit;
+    font-size: 12px;
+    padding: 4px 9px;
+    border-radius: 7px;
+    border: 1px solid var(--page-line);
+    background: var(--dsw-alias-bg-layer-2);
+    color: var(--page-fg);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--dsw-alias-border-l2); background: var(--dsw-alias-interactive-bg-hover); }
+  button[aria-pressed="true"] { border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-brand-primary); }
+  .line { font-size: 12px; line-height: 1.6; }
+  .line b { font-weight: 600; }
+  .checklist { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+  .checklist li { padding: 1px 0; }
+  .checklist li.ok { color: var(--ok); }
+  .checklist li.bad { color: var(--bad); }
+  .checklist li.note { color: var(--dsw-alias-label-secondary); }
+  pre {
+    margin: 0;
+    padding: 8px 10px;
+    max-height: 150px;
+    overflow: auto;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-radius: 7px;
+    background: var(--dsw-alias-bg-layer-2);
+    border: 1px solid var(--page-line);
+    color: var(--dsw-alias-label-secondary);
+  }
+  .hint { font-size: 11.5px; line-height: 1.7; opacity: .7; }
+  .err-count { font-variant-numeric: tabular-nums; font-weight: 600; }
+  #probe { position: absolute; left: -9999px; top: 0; width: 240px; height: 40px; overflow: hidden; }
+  .pill { display: inline-block; padding: 0 7px; border-radius: 999px; border: 1px solid var(--page-line); font-size: 11px; }
+  .status-grid { display: grid; grid-template-columns: 92px 1fr; gap: 2px 8px; font-size: 12px; }
+  .status-grid .k { opacity: .6; }
+  .status-grid .v { font-variant-numeric: tabular-nums; word-break: break-word; }
+</style>
+</head>
+<body data-theme="light">
+
+<div class="layout">
+  <div class="preview-col">
+    <div class="stage-label">
+      <b>游戏舞台（假宿主）</b>
+      <span id="stage-size-label">720 × 600</span>
+      <span>· dev 预览，不是宿主内验收</span>
+    </div>
+    <div id="stage" class="stage">
+      <div id="game-root"></div>
+    </div>
+    <div class="row" id="size-row">
+      <button data-w="320" data-h="240" aria-pressed="false">320×240</button>
+      <button data-w="360" data-h="520" aria-pressed="false">360×520</button>
+      <button data-w="720" data-h="600" aria-pressed="true">720×600</button>
+      <button data-w="1100" data-h="700" aria-pressed="false">1100×700</button>
+    </div>
+    <p class="hint" style="margin:0;">
+      舞台尺寸切换会触发 client.js 里的 ResizeObserver；主题切换只换 CSS token
+      （工具栏/按钮/弹窗立即跟随，牌桌保持自己的配色）。
+    </p>
+  </div>
+
+  <div class="side">
+    <h1>接龙 Solitaire <small>dev preview</small></h1>
+
+    <div class="card">
+      <h2>client.js 注册 / seam 校验</h2>
+      <div class="line" id="boot-status">未加载</div>
+      <ul class="checklist" id="boot-checks"></ul>
+    </div>
+
+    <div class="card">
+      <h2>实时状态（从 localStorage 与 DOM 读取）</h2>
+      <div class="status-grid" id="live-status"></div>
+    </div>
+
+    <div class="card">
+      <h2>页面控制</h2>
+      <div class="row">
+        <button id="theme-toggle" aria-pressed="false">切换主题：亮色</button>
+        <button id="remount">重挂组件</button>
+        <button id="clear-save">清空存档 + 重挂</button>
+      </div>
+      <div class="row">
+        <button data-scenario="fresh">新局（种子 7）</button>
+        <button data-scenario="midgame">中局截图</button>
+        <button data-scenario="autoflip">自动翻牌局面</button>
+        <button data-scenario="nearwin">近胜局（双击通关）</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>交互自检（真实 DOM 点击 + 存档断言）</h2>
+      <div class="row">
+        <button id="run-selftest">运行交互自检</button>
+        <span class="line" id="selftest-summary">未运行</span>
+      </div>
+      <ul class="checklist" id="selftest-list"></ul>
+    </div>
+
+    <div class="card">
+      <h2>window error / unhandledrejection / console.error</h2>
+      <div class="row">
+        <span>window error: <span id="err-count" class="err-count">0</span></span>
+        <span>unhandledrejection: <span id="rej-count" class="err-count">0</span></span>
+        <span>console.error: <span id="console-err-count" class="err-count">0</span></span>
+      </div>
+      <pre id="err-detail">（无）</pre>
+    </div>
+  </div>
+</div>
+
+<div id="probe"></div>
+
+<!-- =====================================================================
+     1) 错误收集 + test seam + 假模块表
+     ==================================================================== -->
+<script>
+  window.__DSH_GAME_SOLITAIRE_TEST__ = true
+  window.__gameDefinition = null
+  window.__ModuleLoader__ = {
+    load: function (definition) {
+      window.__gameDefinition = definition
+    },
+  }
+
+  window.__errors = []
+  window.__rejections = []
+  window.__consoleErrors = []
+
+  function recordError(kind, message, extra) {
+    var entry = { kind: kind, message: String(message), at: Date.now() }
+    if (extra) entry.extra = extra
+    if (kind === 'console.error') window.__consoleErrors.push(entry)
+    else if (kind === 'unhandledrejection') window.__rejections.push(entry)
+    else window.__errors.push(entry)
+    renderErrorPanel()
+  }
+  function renderErrorPanel() {
+    var el = document.getElementById('err-detail')
+    if (!el) return
+    var all = window.__errors.concat(window.__rejections, window.__consoleErrors)
+    if (!all.length) {
+      el.textContent = '（无）'
+      return
+    }
+    el.textContent = all
+      .slice(-8)
+      .map(function (entry) {
+        return '[' + entry.kind + '] ' + entry.message
+      })
+      .join('\n')
+  }
+  window.__recordPreviewError = recordError
+
+  window.addEventListener('error', function (event) {
+    var target = event.target
+    var detail = ''
+    if (target && target !== window && target.tagName) {
+      detail = '<' + String(target.tagName).toLowerCase() + '> ' + (target.src || target.href || '')
+    }
+    recordError('error', event.message || (detail || 'resource load error'), {
+      filename: event.filename || '',
+      lineno: event.lineno || 0,
+      stack: event.error && event.error.stack ? String(event.error.stack) : '',
+      detail: detail,
+    })
+  }, true)
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event.reason
+    recordError('unhandledrejection', reason && reason.message ? reason.message : String(reason), {
+      stack: reason && reason.stack ? String(reason.stack) : '',
+    })
+  })
+
+  var nativeConsoleError = console.error.bind(console)
+  console.error = function () {
+    var parts = []
+    for (var i = 0; i < arguments.length; i += 1) parts.push(String(arguments[i]))
+    recordError('console.error', parts.join(' '))
+    nativeConsoleError.apply(console, arguments)
+  }
+</script>
+
+<script src="fake-react.js"></script>
+<script>
+  window.__clientScriptError = null
+</script>
+<script src="../client.js"
+        onerror="window.__clientScriptError = 'client.js 加载失败（文件不存在或不可读）'; window.__recordPreviewError('error', window.__clientScriptError)"></script>
+
+<script>
+(function () {
+  'use strict'
+
+  var R = window.FakeReact
+  var api = window.__DSH_GAME_SOLITAIRE__
+  var def = window.__gameDefinition
+  var KEY = api ? api.STORE_KEY : 'dsh.game.solitaire.v1'
+  var stageEl = document.getElementById('stage')
+  var rootEl = document.getElementById('game-root')
+  var Component = null
+  var selftestResults = []
+  var log = []
+
+  /* ------------------------------------------------------------------ *
+   * 基本工具
+   * ------------------------------------------------------------------ */
+
+  function sleep(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms)
+    })
+  }
+  function assert(condition, message) {
+    if (!condition) throw new Error(message || 'assertion failed')
+  }
+  function assertEq(actual, expected, message) {
+    if (actual !== expected) {
+      throw new Error((message || 'not equal') + '：期望 ' + JSON.stringify(expected) + '，实际 ' + JSON.stringify(actual))
+    }
+  }
+  function issue(msg) {
+    log.push(msg)
+    if (window.__recordPreviewError) window.__recordPreviewError('preview', msg)
+  }
+
+  function c(suit, rank) {
+    return suit * 13 + (rank - 1)
+  }
+
+  function readSave() {
+    var raw = null
+    try {
+      raw = window.localStorage.getItem(KEY)
+    } catch (error) {
+      return null
+    }
+    if (!raw) return null
+    try {
+      return JSON.parse(raw)
+    } catch (error) {
+      return null
+    }
+  }
+  function savedSanitized() {
+    var raw = readSave()
+    if (!raw) return null
+    return api.sanitizeState(raw)
+  }
+
+  function buildRaw(spec) {
+    var options = spec || {}
+    var foundations = [[], [], [], []]
+    var f = options.foundations || {}
+    for (var key in f) {
+      if (!Object.prototype.hasOwnProperty.call(f, key)) continue
+      foundations[Number(key)] = f[key].slice()
+    }
+    var waste = (options.waste || []).slice()
+    var tableauSpec = options.tableau || [[], [], [], [], [], [], []]
+    var tableau = tableauSpec.map(function (column) {
+      return column.map(function (entry) {
+        if (entry && typeof entry === 'object') return { id: entry.id, up: entry.up !== false }
+        return { id: entry, up: true }
+      })
+    })
+    while (tableau.length < 7) tableau.push([])
+    var used = new Set()
+    function use(id) {
+      assert(Number.isInteger(id) && id >= 0 && id < 52, 'bad card id ' + id)
+      assert(!used.has(id), 'duplicate card id ' + id)
+      used.add(id)
+    }
+    foundations.forEach(function (pile) { pile.forEach(use) })
+    waste.forEach(use)
+    tableau.forEach(function (column) { column.forEach(function (card) { use(card.id) }) })
+    var stock = []
+    for (var id = 0; id < 52; id += 1) if (!used.has(id)) stock.push(id)
+    return {
+      schemaVersion: 1,
+      seed: options.seed === undefined ? 7 : options.seed,
+      started: options.started !== false,
+      won: options.won === true,
+      moves: options.moves || 0,
+      elapsedMs: options.elapsedMs || 0,
+      undo: [],
+      stock: stock,
+      waste: waste,
+      foundations: foundations,
+      tableau: tableau.map(function (column) {
+        return column.map(function (card) { return card.up ? card.id : card.id + 52 })
+      }),
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 挂载 / 注入 / 场景
+   * ------------------------------------------------------------------ */
+
+  function mount() {
+    if (!Component) throw new Error('组件未注册')
+    R.render(R.createElement(Component, { matched: {} }), rootEl)
+  }
+
+  function unmount() {
+    return R.unmountComponentAtNode(rootEl)
+  }
+
+  function remount() {
+    unmount()
+    mount()
+  }
+
+  function injectRaw(raw) {
+    var state = api.sanitizeState(raw)
+    if (!state) throw new Error('构造的存档不合法：' + JSON.stringify(raw).slice(0, 200))
+    unmount()
+    window.localStorage.setItem(KEY, JSON.stringify(api.serializeState(state)))
+    mount()
+  }
+
+  function injectSeed(seed) {
+    unmount()
+    var state = api.emptyState(seed >>> 0)
+    window.localStorage.setItem(KEY, JSON.stringify(api.serializeState(state)))
+    mount()
+  }
+
+  function setStageSize(width, height) {
+    stageEl.style.width = width + 'px'
+    stageEl.style.height = height + 'px'
+    document.getElementById('stage-size-label').textContent = width + ' × ' + height
+    Array.prototype.forEach.call(document.querySelectorAll('#size-row button'), function (button) {
+      var active = Number(button.getAttribute('data-w')) === width && Number(button.getAttribute('data-h')) === height
+      button.setAttribute('aria-pressed', active ? 'true' : 'false')
+    })
+  }
+
+  function setTheme(dark) {
+    document.body.setAttribute('data-theme', dark ? 'dark' : 'light')
+    var toggle = document.getElementById('theme-toggle')
+    toggle.textContent = dark ? '切换主题：暗色' : '切换主题：亮色'
+    toggle.setAttribute('aria-pressed', dark ? 'true' : 'false')
+  }
+
+  /* ------------------------------------------------------------------ *
+   * DOM 助手
+   * ------------------------------------------------------------------ */
+
+  function boardEl() {
+    return document.querySelector('.dshsol-board')
+  }
+  function isSlot(el) {
+    return !!(el && el.classList && el.classList.contains('dshsol-slot'))
+  }
+  function slotEls() {
+    var board = boardEl()
+    if (!board) return []
+    return Array.prototype.filter.call(board.children, isSlot)
+  }
+  function stockEl() {
+    return slotEls()[0] || null
+  }
+  function foundationEl(pile) {
+    return slotEls()[pile + 1] || null
+  }
+  function columnEls() {
+    var board = boardEl()
+    if (!board) return []
+    return Array.prototype.slice.call(board.querySelectorAll('.dshsol-column'))
+  }
+  function columnCards(col) {
+    var column = columnEls()[col]
+    if (!column) return []
+    return Array.prototype.slice.call(column.querySelectorAll('.dshsol-card'))
+  }
+  function wasteCardEls() {
+    var board = boardEl()
+    if (!board) return []
+    return Array.prototype.filter.call(board.children, function (el) {
+      return el.classList && el.classList.contains('dshsol-card')
+    })
+  }
+  function wasteTopEl() {
+    var cards = wasteCardEls()
+    return cards.length ? cards[cards.length - 1] : null
+  }
+  function buttonEl(text) {
+    return Array.prototype.find.call(document.querySelectorAll('.dshsol-btn'), function (el) {
+      return el.textContent === text
+    }) || null
+  }
+  function gameComponentRoot() {
+    return document.querySelector('.dshsol-root')
+  }
+
+  function click(el) {
+    assert(el, 'click target not found')
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
+  }
+  function dblclick(el) {
+    assert(el, 'dblclick target not found')
+    el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window }))
+  }
+  function contextMenu(el) {
+    var event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, view: window })
+    el.dispatchEvent(event)
+    return event
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 拖拽模拟：pointerdown 发在牌上，move/up 发在牌桌元素上（与真实指针
+   * 捕获后的 retarget 等价；setPointerCapture 对合成 pointerId 会抛错，
+   * client.js 已兜底）。
+   * ------------------------------------------------------------------ */
+
+  function pointerEventOf(type, target, x, y, pointerId) {
+    return new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: x,
+      clientY: y,
+      pointerId: pointerId || 1,
+      button: 0,
+      buttons: type === 'pointerup' ? 0 : 1,
+      isPrimary: true,
+    })
+  }
+
+  function centerOf(el) {
+    var rect = el.getBoundingClientRect()
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+  }
+
+  function columnPoint(col) {
+    var rect = columnEls()[col].getBoundingClientRect()
+    return { x: rect.left + rect.width / 2, y: rect.top + 40 }
+  }
+
+  function simulateDrag(startEl, targetPoint, pointerId) {
+    assert(startEl, 'drag start element not found')
+    var start = centerOf(startEl)
+    var board = boardEl()
+    var id = pointerId || 77
+    startEl.dispatchEvent(pointerEventOf('pointerdown', startEl, start.x, start.y, id))
+    board.dispatchEvent(pointerEventOf('pointermove', board, start.x + 18, start.y + 10, id))
+    board.dispatchEvent(pointerEventOf('pointermove', board, targetPoint.x, targetPoint.y, id))
+    board.dispatchEvent(pointerEventOf('pointerup', board, targetPoint.x, targetPoint.y, id))
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Boot 校验
+   * ------------------------------------------------------------------ */
+
+  var bootChecks = []
+
+  function addBootCheck(text, ok) {
+    bootChecks.push({ text: text, ok: !!ok })
+    return !!ok
+  }
+
+  function renderBootChecks(statusText, failed) {
+    var status = document.getElementById('boot-status')
+    status.textContent = statusText
+    status.style.color = failed ? 'var(--bad)' : 'var(--ok)'
+    var list = document.getElementById('boot-checks')
+    list.innerHTML = ''
+    bootChecks.forEach(function (check) {
+      var li = document.createElement('li')
+      li.className = check.ok ? 'ok' : 'bad'
+      li.textContent = (check.ok ? '✓ ' : '✗ ') + check.text
+      list.appendChild(li)
+    })
+  }
+
+  function fakeReactSanity() {
+    var sandbox = document.getElementById('probe')
+    if (!R || !sandbox) return false
+    var renders = 0
+    function Probe() {
+      renders += 1
+      var s = R.useState(0)
+      return R.createElement(
+        'button',
+        {
+          id: 'probe-btn',
+          onClick: function () {
+            s[1](s[0] + 1)
+          },
+        },
+        'n=' + s[0],
+      )
+    }
+    try {
+      R.render(R.createElement(Probe, null), sandbox)
+      var btn = document.getElementById('probe-btn')
+      if (!btn) return false
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      var text = document.getElementById('probe-btn').textContent
+      R.unmountComponentAtNode(sandbox)
+      return text === 'n=1' && renders >= 2
+    } catch (error) {
+      issue('fake-react 自检失败：' + error.message)
+      try {
+        R.unmountComponentAtNode(sandbox)
+      } catch (cleanupError) {
+        // ignore
+      }
+      return false
+    }
+  }
+
+  function boot() {
+    try {
+      if (!api) throw new Error('test seam 未安装（client.js 未加载？）')
+      if (!def) throw new Error(window.__clientScriptError || 'client.js 没有调用 __ModuleLoader__.load')
+      if (!R) throw new Error('fake-react.js 未加载')
+
+      addBootCheck('definition.id === "@local/dsh-game-solitaire"', def.id === '@local/dsh-game-solitaire')
+      addBootCheck('definition.factory 是函数', typeof def.factory === 'function')
+      addBootCheck('fake-react 自检（渲染 + hook + 事件）', fakeReactSanity())
+
+      var module = def.factory(function (name) {
+        if (name === 'react') return R
+        throw new Error('预览页没有模块：' + name)
+      })
+      addBootCheck('factory(require) 返回 { inject, apply }', !!module && Array.isArray(module.inject) && typeof module.apply === 'function')
+      addBootCheck('inject 只声明 slots', Array.isArray(module.inject) && module.inject.length === 1 && module.inject[0] === 'slots')
+
+      var registered = null
+      var injectedName = null
+      module.apply({
+        slots: {
+          inject: function (name, callback) {
+            injectedName = name
+            callback()
+          },
+          register: function (entry, component) {
+            registered = { entry: entry, Component: component }
+            return function unregister() {}
+          },
+        },
+      })
+      addBootCheck('slots.inject("game.stage") 并触发 register', !!registered && injectedName === 'game.stage')
+      if (registered) {
+        var entry = registered.entry
+        Component = registered.Component
+        addBootCheck('entry.name === "game.stage"', entry.name === 'game.stage')
+        addBootCheck('entry.id === "solitaire"', entry.id === 'solitaire')
+        addBootCheck('entry.label() === "接龙"', typeof entry.label === 'function' && entry.label() === '接龙')
+        var matched = entry.select({ gameId: 'solitaire' })
+        var other = entry.select({ gameId: '2048' })
+        var nothing = entry.select(null)
+        addBootCheck('select({gameId:"solitaire"}) 非 null', matched !== null && matched !== undefined)
+        addBootCheck('select({gameId:"2048"}) === null', other === null)
+        addBootCheck('select(null) === null', nothing === null)
+      }
+      addBootCheck('seam window.__DSH_GAME_SOLITAIRE__ 存在', !!api)
+      addBootCheck('存档 key = dsh.game.solitaire.v1', KEY === 'dsh.game.solitaire.v1')
+
+      mount()
+      addBootCheck('挂载后 .dshsol-root 存在', !!gameComponentRoot())
+      addBootCheck('挂载后 .dshsol-board 存在', !!boardEl())
+      addBootCheck('挂载后渲染出牌面 DOM', document.querySelectorAll('.dshsol-card').length > 0)
+      addBootCheck('工具栏按钮 撤销/重开/新游戏', !!buttonEl('撤销') && !!buttonEl('重开') && !!buttonEl('新游戏'))
+      addBootCheck('5 个槽位（1 牌堆 + 4 基座）', slotEls().length === 5)
+
+      var failed = bootChecks.filter(function (check) { return !check.ok }).length
+      renderBootChecks(failed ? '存在 ' + failed + ' 项失败' : '全部通过（' + bootChecks.length + ' 项）', failed > 0)
+      return !failed
+    } catch (error) {
+      addBootCheck('boot 异常：' + (error && error.message ? error.message : String(error)), false)
+      renderBootChecks('boot 失败：' + (error && error.message ? error.message : String(error)), true)
+      window.__recordPreviewError('boot', error && error.stack ? error.stack : String(error))
+      return false
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 场景
+   * ------------------------------------------------------------------ */
+
+  var scenarios = {
+    fresh: function () {
+      injectSeed(7)
+    },
+    midgame: function () {
+      injectRaw(buildRaw({
+        seed: 20261018,
+        foundations: { 0: [c(0, 1), c(0, 2)], 1: [c(1, 1)], 2: [c(2, 1)] },
+        tableau: [
+          [c(3, 13), c(1, 12), c(3, 11), c(1, 10)],
+          [c(0, 9), c(1, 8), c(0, 7)],
+          [c(1, 6), c(0, 5)],
+          [c(2, 13), c(0, 12)],
+          [c(1, 4)],
+          [c(3, 3), c(2, 2)],
+          [],
+        ],
+        stock: [],
+      }))
+    },
+    autoflip: function () {
+      injectRaw(buildRaw({
+        seed: 99,
+        tableau: [
+          [{ id: c(2, 5), up: false }, c(1, 7)],
+          [c(0, 8)],
+          [c(3, 9), c(2, 8), c(3, 7)],
+        ],
+      }))
+    },
+    nearwin: function () {
+      var foundations = [[], [], [], []]
+      for (var suit = 0; suit < 4; suit += 1) {
+        for (var rank = 1; rank <= 12; rank += 1) foundations[suit].push(c(suit, rank))
+      }
+      injectRaw(buildRaw({
+        seed: 555,
+        foundations: { 0: foundations[0], 1: foundations[1], 2: foundations[2], 3: foundations[3] },
+        tableau: [[c(0, 13)], [c(1, 13)], [c(2, 13)], [c(3, 13)]],
+      }))
+    },
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 交互自检（真实 DOM 点击 → 读存档断言）
+   * ------------------------------------------------------------------ */
+
+  function addSelftestResult(name, ok, error) {
+    selftestResults.push({ name: name, ok: ok, error: error || '' })
+    renderSelftest()
+  }
+
+  function renderSelftest() {
+    var list = document.getElementById('selftest-list')
+    list.innerHTML = ''
+    selftestResults.forEach(function (result) {
+      var li = document.createElement('li')
+      li.className = result.ok ? 'ok' : 'bad'
+      li.textContent = (result.ok ? '✓ ' : '✗ ') + result.name + (result.ok ? '' : ' — ' + result.error)
+      list.appendChild(li)
+    })
+    var failed = selftestResults.filter(function (r) { return !r.ok }).length
+    var summary = document.getElementById('selftest-summary')
+    summary.textContent = selftestResults.length
+      ? (failed ? failed + ' 项失败 / ' + selftestResults.length : '全部通过（' + selftestResults.length + ' 项）')
+      : '未运行'
+    summary.style.color = failed ? 'var(--bad)' : 'var(--ok)'
+  }
+
+  async function runSelftest() {
+    selftestResults = []
+    renderSelftest()
+    var checks = []
+    function check(name, fn) {
+      try {
+        fn()
+        addSelftestResult(name, true)
+      } catch (error) {
+        addSelftestResult(name, false, error && error.message ? error.message : String(error))
+      }
+    }
+    function save() {
+      var raw = readSave()
+      assert(raw, '没有存档')
+      return raw
+    }
+    try {
+      injectSeed(7)
+      await sleep(80)
+      check('初始牌面 29 张 + 存档 stock=24', function () {
+        assertEq(document.querySelectorAll('.dshsol-card').length, 29, 'card DOM count')
+        var raw = save()
+        assertEq(raw.stock.length, 24, 'saved stock')
+        assertEq(raw.moves, 0, 'saved moves')
+      })
+
+      click(stockEl())
+      await sleep(20)
+      check('点牌堆 → 翻 1 张到弃牌堆', function () {
+        var raw = save()
+        assertEq(raw.stock.length, 23, 'stock')
+        assertEq(raw.waste.length, 1, 'waste')
+        assertEq(raw.moves, 1, 'moves')
+        assertEq(raw.started, true, 'started')
+      })
+
+      click(stockEl())
+      await sleep(20)
+      click(buttonEl('撤销'))
+      await sleep(20)
+      check('撤销 → 回到翻牌前（stock=23 waste=1 moves=1）', function () {
+        var raw = save()
+        assertEq(raw.stock.length, 23, 'stock')
+        assertEq(raw.waste.length, 1, 'waste')
+        assertEq(raw.moves, 1, 'moves')
+        assertEq(raw.undo.length, 1, 'undo stack')
+      })
+
+      click(wasteTopEl())
+      await sleep(20)
+      check('点弃牌堆顶 → 选中（.dshsol-card--sel 出现，提示条出现）', function () {
+        assertEq(document.querySelectorAll('.dshsol-card--sel').length, 1, 'selected card')
+        assert(!!document.querySelector('.dshsol-toast'), 'message toast')
+      })
+
+      for (var i = 0; i < 23; i += 1) click(stockEl())
+      await sleep(40)
+      check('连续翻牌到牌堆空（stock=0 waste=24）', function () {
+        var raw = save()
+        assertEq(raw.stock.length, 0, 'stock')
+        assertEq(raw.waste.length, 24, 'waste')
+      })
+
+      click(stockEl())
+      await sleep(20)
+      check('牌堆空后再点 → 弃牌堆整体收回（stock=24 waste=0）', function () {
+        var raw = save()
+        assertEq(raw.stock.length, 24, 'stock')
+        assertEq(raw.waste.length, 0, 'waste')
+      })
+
+      click(buttonEl('重开'))
+      await sleep(30)
+      check('重开 → 同一副牌（seed=7，stock=24，moves=0）', function () {
+        var raw = save()
+        assertEq(raw.seed, 7, 'seed')
+        assertEq(raw.stock.length, 24, 'stock')
+        assertEq(raw.moves, 0, 'moves')
+        assertEq(raw.undo.length, 0, 'undo')
+      })
+
+      click(buttonEl('新游戏'))
+      await sleep(30)
+      check('新游戏 → 换种子、重新发牌', function () {
+        var raw = save()
+        assert(raw.seed !== 7, 'seed should change')
+        assertEq(raw.stock.length, 24, 'stock')
+        assertEq(raw.moves, 0, 'moves')
+      })
+
+      /* 选中并可放置：7♥ 放到 8♠ */
+      injectRaw(buildRaw({ seed: 21, waste: [c(2, 4), c(1, 7)], tableau: [[c(0, 8)], []] }))
+      await sleep(40)
+      click(wasteTopEl())
+      await sleep(20)
+      check('选中后目标列出现高亮（.dshsol-column--target）', function () {
+        assert(!!document.querySelector('.dshsol-column--target'), 'target column highlighted')
+      })
+      click(columnEls()[0])
+      await sleep(20)
+      check('点目标列 → 牌落到 8♠ 上（waste=1，tableau[0]=2 张）', function () {
+        var raw = save()
+        assertEq(raw.waste.length, 1, 'waste')
+        assertEq(raw.tableau[0].length, 2, 'tableau[0]')
+        assertEq(raw.moves, 1, 'moves')
+        assertEq(document.querySelectorAll('.dshsol-card--sel').length, 0, 'selection cleared')
+      })
+
+      /* 自动翻牌 */
+      injectRaw(buildRaw({
+        seed: 22,
+        tableau: [[{ id: c(2, 5), up: false }, c(1, 7)], [c(0, 8)]],
+      }))
+      await sleep(40)
+      click(columnCards(0)[1])
+      await sleep(20)
+      click(columnEls()[1])
+      await sleep(20)
+      check('自动翻牌：移走后暴露的扣牌变正面', function () {
+        var raw = save()
+        assertEq(raw.tableau[0].length, 1, 'column 0 length')
+        assert(raw.tableau[0][0] < 52, 'exposed card encoded face-up')
+        assertEq(raw.tableau[1].length, 2, 'column 1 length')
+      })
+
+      /* 双击进基座 */
+      injectRaw(buildRaw({ seed: 23, tableau: [[c(0, 1)], [c(1, 1)]] }))
+      await sleep(40)
+      dblclick(columnCards(0)[0])
+      await sleep(20)
+      check('双击 A♠ → 自动进基座', function () {
+        var raw = save()
+        assertEq(raw.foundations[0].length, 1, 'foundation 0')
+        assertEq(raw.tableau[0].length, 0, 'tableau 0')
+        assertEq(raw.moves, 1, 'moves')
+      })
+
+      /* 拖拽：弃牌堆顶 → 合法牌桌列 */
+      injectRaw(buildRaw({ seed: 31, waste: [c(2, 4), c(1, 7)], tableau: [[c(0, 8)], []] }))
+      await sleep(50)
+      simulateDrag(wasteTopEl(), columnPoint(0))
+      await sleep(30)
+      check('拖拽：弃牌堆顶 7♥ 拖到 8♠ 上', function () {
+        var raw = save()
+        assertEq(raw.waste.length, 1, 'waste')
+        assertEq(raw.tableau[0].length, 2, 'tableau 0')
+        assertEq(raw.moves, 1, 'moves')
+        assertEq(document.querySelectorAll('.dshsol-card--hidden').length, 0, 'originals restored')
+        assertEq(document.querySelectorAll('.dshsol-card--floating').length, 0, 'no floating card left')
+      })
+
+      /* 拖拽：整段 K 首牌堆 → 空列 */
+      injectRaw(buildRaw({
+        seed: 32,
+        tableau: [[c(3, 13), c(1, 12), c(3, 11)], [], [], [], [], [], []],
+      }))
+      await sleep(50)
+      simulateDrag(columnCards(0)[0], columnPoint(6))
+      await sleep(30)
+      check('拖拽：整段 K♣ Q♥ J♣ 拖到空列', function () {
+        var raw = save()
+        assertEq(raw.tableau[0].length, 0, 'tableau 0 empty')
+        assertEq(raw.tableau[6].length, 3, 'tableau 6 has the run')
+        assertEq(raw.moves, 1, 'moves')
+      })
+
+      /* 拖拽：非法目标 → 弹回并提示原因 */
+      injectRaw(buildRaw({ seed: 33, waste: [c(1, 7)], tableau: [[c(1, 8)], []] }))
+      await sleep(50)
+      simulateDrag(wasteTopEl(), columnPoint(0)) // 7♥ on 8♥: same colour
+      await sleep(30)
+      check('拖拽：非法目标自动弹回并提示规则', function () {
+        var raw = save()
+        assertEq(raw.waste.length, 1, 'waste unchanged')
+        assertEq(raw.tableau[0].length, 1, 'tableau unchanged')
+        assertEq(raw.moves, 0, 'moves unchanged')
+        var toast = document.querySelector('.dshsol-toast')
+        assert(toast && toast.textContent.length > 0, 'rule message shown')
+        assertEq(document.querySelectorAll('.dshsol-card--hidden').length, 0, 'originals restored')
+      })
+
+      /* 拖拽：基座顶牌 → 牌桌 */
+      injectRaw(buildRaw({ seed: 34, foundations: { 0: [c(0, 1)] }, tableau: [[c(1, 2)]] }))
+      await sleep(50)
+      simulateDrag(foundationEl(0).querySelector('.dshsol-card'), columnPoint(0))
+      await sleep(30)
+      check('拖拽：基座 A♠ 拖回 2♥ 上', function () {
+        var raw = save()
+        assertEq(raw.foundations[0].length, 0, 'foundation 0 empty')
+        assertEq(raw.tableau[0].length, 2, 'tableau 0')
+        assertEq(raw.moves, 1, 'moves')
+      })
+
+      /* 拖拽后点击仍然可用 */
+      injectRaw(buildRaw({ seed: 35, waste: [c(2, 4), c(1, 7)], tableau: [[c(0, 8)]] }))
+      await sleep(50)
+      simulateDrag(wasteTopEl(), columnPoint(0))
+      await sleep(30)
+      click(wasteTopEl())
+      await sleep(20)
+      check('拖拽之后点击选中仍然可用', function () {
+        assertEq(document.querySelectorAll('.dshsol-card--sel').length, 1, 'click selection works')
+      })
+
+      /* 未超过阈值 = 点击，不产生拖拽 */
+      injectRaw(buildRaw({ seed: 36, waste: [c(1, 7)], tableau: [[c(0, 8)]] }))
+      await sleep(50)
+      var tinyStart = centerOf(wasteTopEl())
+      var tinyId = 88
+      wasteTopEl().dispatchEvent(pointerEventOf('pointerdown', wasteTopEl(), tinyStart.x, tinyStart.y, tinyId))
+      boardEl().dispatchEvent(pointerEventOf('pointermove', boardEl(), tinyStart.x + 2, tinyStart.y + 2, tinyId))
+      boardEl().dispatchEvent(pointerEventOf('pointerup', boardEl(), tinyStart.x + 2, tinyStart.y + 2, tinyId))
+      await sleep(20)
+      check('移动 < 阈值 → 不触发拖拽、不改局面', function () {
+        var raw = save()
+        assertEq(raw.moves, 0, 'moves unchanged')
+        assertEq(raw.waste.length, 1, 'waste unchanged')
+        assertEq(document.querySelectorAll('.dshsol-card--floating').length, 0, 'no drag layer')
+      })
+
+      /* 近胜局 + 双击四张 K 通关 */
+      scenarios.nearwin()
+      await sleep(50)
+      for (var suit = 0; suit < 4; suit += 1) {
+        var cards = columnCards(suit)
+        assert(cards.length, 'king card missing in column ' + suit)
+        dblclick(cards[0])
+        await sleep(20)
+      }
+      check('双击四张 K → 四基座全满、胜利弹窗', function () {
+        var raw = save()
+        assertEq(raw.won, true, 'won flag')
+        assertEq(raw.foundations[0].length, 13, 'foundation 0')
+        assertEq(raw.foundations[3].length, 13, 'foundation 3')
+        var title = document.querySelector('.dshsol-panel-title')
+        assert(title && title.textContent.indexOf('恭喜通关') >= 0, 'win overlay')
+        // Foundations only render their top card, so the visible card nodes are
+        // the four kings; the full 52-card state lives in the save.
+        assertEq(document.querySelectorAll('.dshsol-card').length, 4, 'four foundation top cards')
+      })
+
+      /* 窗口太小 */
+      click(buttonEl('新游戏'))
+      await sleep(30)
+      setStageSize(300, 220)
+      await sleep(160)
+      check('窗口太小（300×220）→ 显示提示而不是烂画面', function () {
+        assert(!!document.querySelector('.dshsol-toosmall'), 'too-small notice')
+        assertEq(columnEls().length, 0, 'no board layout drawn')
+      })
+      setStageSize(720, 600)
+      await sleep(160)
+      check('恢复 720×600 → 重新出牌桌', function () {
+        assert(columnEls().length === 7, '7 columns back')
+      })
+
+      /* 右键菜单禁用 */
+      injectSeed(7)
+      await sleep(50)
+      check('右键菜单被 preventDefault', function () {
+        var event = contextMenu(columnCards(6)[6])
+        assertEq(event.defaultPrevented, true, 'contextmenu prevented')
+      })
+
+      /* Escape 取消选中（根元素 onKeyDown，仅根元素监听） */
+      click(columnCards(6)[6])
+      await sleep(20)
+      var rootNode = gameComponentRoot()
+      check('选中牌后 Escape → 取消选中', function () {
+        assertEq(document.querySelectorAll('.dshsol-card--sel').length, 1, 'selected before escape')
+        rootNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+        assertEq(document.querySelectorAll('.dshsol-card--sel').length, 0, 'selection cleared')
+      })
+
+      check('运行期无 window error / unhandledrejection', function () {
+        assertEq(window.__errors.length, 0, 'window errors')
+        assertEq(window.__rejections.length, 0, 'rejections')
+      })
+    } catch (error) {
+      addSelftestResult('自检流程异常终止', false, error && error.message ? error.message : String(error))
+    }
+    /* 收尾：回到干净的新局，方便截图 */
+    try {
+      setStageSize(720, 600)
+      setTheme(false)
+      injectSeed(7)
+    } catch (error) {
+      // ignore
+    }
+    return selftestResults
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 实时状态轮询
+   * ------------------------------------------------------------------ */
+
+  function statusText() {
+    var raw = readSave()
+    var cards = document.querySelectorAll('.dshsol-card').length
+    var selected = document.querySelectorAll('.dshsol-card--sel').length
+    var overlay = document.querySelector('.dshsol-panel-title')
+    var tooSmall = !!document.querySelector('.dshsol-toosmall')
+    var undoBtn = buttonEl('撤销')
+    return {
+      save: raw,
+      cards: cards,
+      selected: selected,
+      overlay: overlay ? overlay.textContent : '',
+      tooSmall: tooSmall,
+      undoDisabled: undoBtn ? undoBtn.disabled : null,
+    }
+  }
+
+  function updateLiveStatus() {
+    var panel = document.getElementById('live-status')
+    if (!panel) return
+    var status = statusText()
+    var raw = status.save
+    var rows = []
+    function row(key, value) {
+      rows.push([key, value])
+    }
+    row('舞台', stageEl.style.width + ' × ' + stageEl.style.height)
+    if (!raw) {
+      row('存档', '（无）')
+    } else {
+      row('seed', String(raw.seed))
+      row('牌堆 / 弃牌', raw.stock.length + ' / ' + raw.waste.length)
+      row('步数 / 用时', raw.moves + ' / ' + Math.round(raw.elapsedMs / 1000) + 's')
+      row('基座', raw.foundations.map(function (p) { return p.length }).join(' / '))
+      row('牌桌', raw.tableau.map(function (p) { return p.length }).join(' / '))
+      row('撤销栈', String(raw.undo.length) + '（按钮' + (status.undoDisabled === true ? '禁用' : '可用') + '）')
+      row('started / won', String(raw.started) + ' / ' + String(raw.won))
+    }
+    row('DOM 牌面', status.cards + ' 张，选中 ' + status.selected)
+    row('弹窗', status.overlay || '（无）')
+    row('tooSmall', String(status.tooSmall))
+    panel.innerHTML = rows
+      .map(function (pair) {
+        return '<div class="k">' + pair[0] + '</div><div class="v">' + String(pair[1]) + '</div>'
+      })
+      .join('')
+    document.getElementById('err-count').textContent = String(window.__errors.length)
+    document.getElementById('rej-count').textContent = String(window.__rejections.length)
+    document.getElementById('console-err-count').textContent = String(window.__consoleErrors.length)
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 页面事件绑定 + 启动
+   * ------------------------------------------------------------------ */
+
+  document.getElementById('theme-toggle').addEventListener('click', function () {
+    setTheme(document.body.getAttribute('data-theme') !== 'dark')
+  })
+  document.getElementById('remount').addEventListener('click', function () {
+    remount()
+  })
+  document.getElementById('clear-save').addEventListener('click', function () {
+    unmount()
+    try {
+      window.localStorage.removeItem(KEY)
+    } catch (error) {
+      // ignore
+    }
+    mount()
+  })
+  document.getElementById('run-selftest').addEventListener('click', function () {
+    runSelftest()
+  })
+  Array.prototype.forEach.call(document.querySelectorAll('#size-row button'), function (button) {
+    button.addEventListener('click', function () {
+      setStageSize(Number(button.getAttribute('data-w')), Number(button.getAttribute('data-h')))
+    })
+  })
+  Array.prototype.forEach.call(document.querySelectorAll('[data-scenario]'), function (button) {
+    button.addEventListener('click', function () {
+      var name = button.getAttribute('data-scenario')
+      try {
+        scenarios[name]()
+      } catch (error) {
+        window.__recordPreviewError('scenario', error && error.stack ? error.stack : String(error))
+      }
+    })
+  })
+
+  window.__preview = {
+    api: api,
+    React: R,
+    boot: boot,
+    mount: mount,
+    unmount: unmount,
+    remount: remount,
+    injectRaw: injectRaw,
+    injectSeed: injectSeed,
+    buildRaw: buildRaw,
+    scenarios: scenarios,
+    setStageSize: setStageSize,
+    setTheme: setTheme,
+    readSave: readSave,
+    savedSanitized: savedSanitized,
+    statusText: statusText,
+    runSelftest: runSelftest,
+    selftestResults: function () {
+      return selftestResults.slice()
+    },
+    bootChecks: function () {
+      return bootChecks.slice()
+    },
+    log: function () {
+      return log.slice()
+    },
+    errors: function () {
+      return {
+        errors: window.__errors.slice(),
+        rejections: window.__rejections.slice(),
+        consoleErrors: window.__consoleErrors.slice(),
+      }
+    },
+  }
+
+  window.__previewReady = false
+  try {
+    boot()
+    window.__previewReady = true
+  } catch (error) {
+    window.__recordPreviewError('boot', error && error.stack ? error.stack : String(error))
+  }
+  updateLiveStatus()
+  setInterval(updateLiveStatus, 500)
+})()
+</script>
+</body>
+</html>

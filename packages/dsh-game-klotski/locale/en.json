@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Klotski",
+    "description": "A 4x5 sliding-block puzzle: move the blocks aside and guide Cao Cao out through the bottom exit. 4 classic layouts with undo, timer and auto-save."
+  }
+}

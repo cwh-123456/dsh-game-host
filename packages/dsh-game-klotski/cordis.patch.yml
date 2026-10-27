@@ -1,0 +1,3 @@
+- insert:
+    - id: game-klotski
+      name: '@local/dsh-game-klotski'

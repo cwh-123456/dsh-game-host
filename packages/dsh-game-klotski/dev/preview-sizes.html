@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>华容道 Klotski — preview size matrix</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #12161b;
+        color: #cfd8e3;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      }
+      h1 {
+        font-size: 14px;
+        font-weight: 700;
+        margin: 0 0 10px;
+        color: #e6edf3;
+      }
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .cell {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .cell span {
+        font-size: 11px;
+        color: #9aa7b4;
+      }
+      iframe {
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        background: #1b1f24;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>华容道 dev preview · size matrix（iframe 内部尺寸 = 宿主舞台尺寸）</h1>
+    <div class="row">
+      <div class="cell">
+        <span>720×600 · light</span>
+        <iframe src="./preview.html?theme=light&embed=1" width="720" height="600"></iframe>
+      </div>
+      <div class="cell">
+        <span>360×520 · light</span>
+        <iframe src="./preview.html?theme=light&embed=2" width="360" height="520"></iframe>
+      </div>
+      <div class="cell">
+        <span>300×220 · light（too small）</span>
+        <iframe src="./preview.html?theme=light&embed=3" width="300" height="220"></iframe>
+      </div>
+    </div>
+    <div class="row">
+      <div class="cell">
+        <span>720×600 · dark</span>
+        <iframe src="./preview.html?theme=dark&embed=4" width="720" height="600"></iframe>
+      </div>
+      <div class="cell">
+        <span>320×240 · dark（minimum supported）</span>
+        <iframe src="./preview.html?theme=dark&embed=5" width="320" height="240"></iframe>
+      </div>
+    </div>
+  </body>
+</html>

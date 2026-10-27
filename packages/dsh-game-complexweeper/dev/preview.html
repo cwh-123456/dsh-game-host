@@ -1,0 +1,914 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>复扫雷 Complexweeper · DSH 游戏包 dev 预览（非宿主验收）</title>
+<style>
+  /* ------------------------------------------------------------------
+   * 页面自己定义两套 DSH token（值取合理近似，仅用于 dev 预览）。
+   * 游戏工具栏 / 状态栏 / 结局条全部用这些 token，所以切换主题能直接
+   * 验证「文字可读、面板底色正确」；棋盘是 canvas 自配色。
+   * ---------------------------------------------------------------- */
+  :root {
+    color-scheme: light;
+    --dsw-alias-bg-base: #ffffff;
+    --dsw-alias-bg-layer-1: #f7f8fa;
+    --dsw-alias-bg-layer-2: #f1f3f5;
+    --dsw-alias-label-primary: #1f2328;
+    --dsw-alias-label-secondary: #57606a;
+    --dsw-alias-label-tertiary: #8b949e;
+    --dsw-alias-border-l1: #d0d7de;
+    --dsw-alias-border-l2: #b6bec8;
+    --dsw-alias-brand-primary: #2f81f7;
+    --dsw-alias-interactive-bg-hover: #eceff2;
+    --dsw-alias-interactive-bg-active: #dfe4e9;
+    --dsw-alias-bg-mask-1: rgba(9, 12, 16, 0.38);
+    --dsw-elevation-panel: 0 8px 24px rgba(0, 0, 0, 0.18);
+    --page-bg: #e9ecf0;
+    --page-fg: #1f2328;
+    --page-card: #ffffff;
+    --page-line: #d5dbe2;
+  }
+  body[data-theme="dark"] {
+    color-scheme: dark;
+    --dsw-alias-bg-base: #17191c;
+    --dsw-alias-bg-layer-1: #1c1f24;
+    --dsw-alias-bg-layer-2: #21262d;
+    --dsw-alias-label-primary: #e6edf3;
+    --dsw-alias-label-secondary: #a7b0ba;
+    --dsw-alias-label-tertiary: #7d8590;
+    --dsw-alias-border-l1: #30363d;
+    --dsw-alias-border-l2: #414a55;
+    --dsw-alias-brand-primary: #4b8ef7;
+    --dsw-alias-interactive-bg-hover: #2a313a;
+    --dsw-alias-interactive-bg-active: #333c47;
+    --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.55);
+    --dsw-elevation-panel: 0 12px 40px rgba(0, 0, 0, 0.5);
+    --page-bg: #101216;
+    --page-fg: #e6edf3;
+    --page-card: #1b1e23;
+    --page-line: #2b3139;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    padding: 18px;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font: 14px/1.55 "Segoe UI", system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+  }
+
+  .layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    max-width: 1500px;
+    margin: 0 auto;
+  }
+  .preview-col { display: flex; flex-direction: column; gap: 10px; }
+  .stage-label { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 12px; opacity: 0.75; }
+  .stage-label b { font-size: 13px; opacity: 1; }
+  .stage {
+    position: relative;
+    width: 720px;
+    height: 600px;
+    background: var(--dsw-alias-bg-base);
+    border: 1px solid var(--page-line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.18);
+  }
+  #game-root { width: 100%; height: 100%; }
+
+  .side {
+    flex: 1 1 400px;
+    min-width: 340px;
+    max-width: 540px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  h1 small { font-size: 12px; font-weight: 400; opacity: 0.65; margin-left: 6px; }
+  .card {
+    border: 1px solid var(--page-line);
+    border-radius: 10px;
+    background: var(--page-card);
+    padding: 11px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .card h2 { margin: 0; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.65; font-weight: 600; }
+  .row { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+  button {
+    font: inherit;
+    font-size: 12.5px;
+    padding: 6px 11px;
+    border-radius: 7px;
+    border: 1px solid var(--page-line);
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--page-fg);
+    cursor: pointer;
+  }
+  button:hover { background: var(--dsw-alias-interactive-bg-active); }
+  button[aria-pressed="true"] { border-color: var(--dsw-alias-brand-primary); box-shadow: inset 0 0 0 1px var(--dsw-alias-brand-primary); }
+  .line { font-size: 12.5px; opacity: 0.85; word-break: break-word; }
+  .line b { font-variant-numeric: tabular-nums; }
+  .ok { color: #1a7f37; }
+  body[data-theme="dark"] .ok { color: #4ac26b; }
+  .bad { color: #cf222e; }
+  body[data-theme="dark"] .bad { color: #ff7b72; }
+  ul.checklist { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.55; }
+  ul.checklist li { margin: 1px 0; }
+  pre {
+    margin: 0;
+    padding: 9px 10px;
+    min-height: 44px;
+    max-height: 230px;
+    overflow: auto;
+    border-radius: 7px;
+    background: var(--dsw-alias-bg-layer-2);
+    border: 1px solid var(--page-line);
+    color: var(--dsw-alias-label-secondary);
+    font-size: 11.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .hint { font-size: 11.5px; line-height: 1.65; opacity: 0.7; }
+  .err-count { font-variant-numeric: tabular-nums; font-weight: 600; }
+</style>
+</head>
+<body data-theme="light">
+
+<div class="layout">
+  <div class="preview-col">
+    <div class="stage-label">
+      <b>游戏舞台（假宿主）</b>
+      <span id="stage-size-label">720 × 600</span>
+      <span>· dev 预览，不是宿主内验收</span>
+    </div>
+    <div id="stage" class="stage">
+      <div id="game-root"></div>
+    </div>
+    <p class="hint" style="margin:0;">
+      舞台尺寸切换会触发 client.js 里的 ResizeObserver；主题切换只换 CSS token
+      （工具栏/状态栏应立刻跟随，棋盘保持自己的配色）。开发预览 ≠ 宿主真机验收。
+    </p>
+  </div>
+
+  <div class="side">
+    <h1>复扫雷 Complexweeper <small>dev preview</small></h1>
+
+    <div class="card">
+      <h2>页面控制</h2>
+      <div class="row">
+        <button id="theme-toggle" aria-pressed="false">切换主题：亮色</button>
+        <button id="remount">重挂组件</button>
+        <button id="clear-save">清空存档 + 重挂</button>
+      </div>
+      <div class="row" id="size-row">
+        <button data-w="360" data-h="520" aria-pressed="false">360×520</button>
+        <button data-w="720" data-h="600" aria-pressed="true">720×600</button>
+        <button data-w="1100" data-h="700" aria-pressed="false">1100×700</button>
+      </div>
+      <div class="line" id="live-status">等待 client.js…</div>
+    </div>
+
+    <div class="card">
+      <h2>交互演示（等价于人手动点）</h2>
+      <div class="row">
+        <button id="demo-start">左键点中心开局</button>
+        <button id="demo-flags">四类旗各插一面</button>
+        <button id="demo-judge-fail">演示判据失败</button>
+        <button id="demo-loss">演示踩雷复盘</button>
+        <button id="demo-win">演示胜利</button>
+        <button id="demo-expert">切高级 30×16</button>
+      </div>
+      <div class="line" id="demo-status">—</div>
+    </div>
+
+    <div class="card">
+      <h2>client.js 注册 / seam 校验</h2>
+      <div class="line" id="boot-status">未加载</div>
+      <ul class="checklist" id="boot-checks"></ul>
+    </div>
+
+    <div class="card">
+      <h2>存档快照</h2>
+      <pre id="save-preview">（无）</pre>
+    </div>
+
+    <div class="card">
+      <h2>window error / unhandledrejection</h2>
+      <div class="row">
+        <span>window error：<span id="err-count" class="err-count">0</span></span>
+        <span>unhandledrejection：<span id="rej-count" class="err-count">0</span></span>
+        <span>console.error：<span id="console-err-count" class="err-count">0</span></span>
+      </div>
+      <pre id="err-detail">（无）</pre>
+      <div class="hint">冒烟验收要求三项计数全为 0；加载失败信息也会出现在这里。</div>
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================================
+     1) 先装 test seam + 假模块表 + 错误收集，再加载 fake-react.js 和 client.js
+     ==================================================================== -->
+<script>
+  window.__DSH_GAME_COMPLEXSWEEPER_TEST__ = true
+  window.__ModuleLoader__ = {
+    load: function (definition) {
+      window.__gameDefinition = definition
+    },
+  }
+  window.__errors = []
+  window.__rejections = []
+  window.__consoleErrors = []
+
+  function recordError(kind, message, extra) {
+    var entry = { kind: kind, message: String(message), at: Date.now() }
+    if (extra) entry.extra = extra
+    if (kind === 'console.error') window.__consoleErrors.push(entry)
+    else if (kind === 'unhandledrejection') window.__rejections.push(entry)
+    else window.__errors.push(entry)
+  }
+  window.__recordPreviewError = recordError
+
+  window.addEventListener('error', function (event) {
+    var target = event.target
+    var detail = ''
+    if (target && target !== window && target.tagName) {
+      detail = '<' + String(target.tagName).toLowerCase() + '> ' + (target.src || target.href || '')
+    }
+    recordError('error', event.message || (detail || 'resource load error'), {
+      filename: event.filename || '',
+      lineno: event.lineno || 0,
+      stack: event.error && event.error.stack ? String(event.error.stack) : '',
+      detail: detail,
+    })
+  }, true)
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event.reason
+    recordError('unhandledrejection', reason && reason.message ? reason.message : String(reason), {
+      stack: reason && reason.stack ? String(reason.stack) : '',
+    })
+  })
+
+  var nativeConsoleError = console.error.bind(console)
+  console.error = function () {
+    var parts = []
+    for (var i = 0; i < arguments.length; i += 1) parts.push(String(arguments[i]))
+    recordError('console.error', parts.join(' '))
+    nativeConsoleError.apply(console, arguments)
+  }
+</script>
+<script src="fake-react.js"></script>
+<script>
+  window.__clientScriptError = null
+</script>
+<script src="../client.js"
+        onerror="window.__clientScriptError = 'client.js 加载失败（文件不存在或不可读）'; window.__recordPreviewError('error', window.__clientScriptError)"></script>
+
+<script>
+(function () {
+  'use strict'
+
+  var R = window.FakeReact
+  var gameRoot = document.getElementById('game-root')
+  var stage = document.getElementById('stage')
+  var registered = null
+  var currentTheme = 'light'
+
+  function $(id) { return document.getElementById(id) }
+  function append(parent, tag, cls, text) {
+    var node = document.createElement(tag)
+    if (cls) node.className = cls
+    if (text !== undefined) node.textContent = text
+    parent.appendChild(node)
+    return node
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild) }
+
+  function setBootLine(text, cls) {
+    var node = $('boot-status')
+    node.textContent = text
+    node.className = 'line' + (cls ? ' ' + cls : '')
+  }
+  function addBootCheck(text, ok) {
+    var list = $('boot-checks')
+    var li = append(list, 'li', ok ? 'ok' : 'bad')
+    li.textContent = (ok ? '✓' : '✗') + ' ' + text
+    return ok
+  }
+
+  /* ================================================================== *
+   * 一、通过假宿主契约加载 client.js 并渲染真实组件
+   * ================================================================== */
+
+  function bootClient() {
+    var def = window.__gameDefinition
+    clear($('boot-checks'))
+    if (!def) {
+      setBootLine(window.__clientScriptError
+        ? window.__clientScriptError
+        : 'client.js 未就绪：window.__gameDefinition 不存在（文件不存在 / 尚未完成 / 加载顺序错误）', 'bad')
+      return false
+    }
+    if (!R) {
+      setBootLine('fake-react.js 未加载，无法渲染组件', 'bad')
+      return false
+    }
+    try {
+      addBootCheck('__ModuleLoader__.load 收到 definition', !!def)
+      addBootCheck('definition.id === "@local/dsh-game-complexweeper"', def.id === '@local/dsh-game-complexweeper')
+      addBootCheck('definition.factory 是函数', typeof def.factory === 'function')
+
+      var requireShim = function (name) {
+        if (name === 'react') return R
+        throw new Error('预览页没有模块：' + name)
+      }
+      var module = def.factory(requireShim)
+      addBootCheck('factory(require) 返回 { inject, apply }',
+        !!module && Array.isArray(module.inject) && typeof module.apply === 'function')
+      addBootCheck('inject 只声明 slots',
+        Array.isArray(module.inject) && module.inject.length === 1 && module.inject[0] === 'slots')
+
+      var ctx = {
+        slots: {
+          inject: function (name, callback) {
+            window.__injectedName = name
+            callback()
+          },
+          register: function (entry, Component) {
+            registered = { entry: entry, Component: Component }
+            window.__registered = registered
+            return function unregister() {}
+          },
+        },
+      }
+      module.apply(ctx)
+      addBootCheck('ctx.slots.inject 调用 "game.stage" 并触发 register',
+        !!registered && window.__injectedName === 'game.stage')
+      if (!registered) {
+        setBootLine('apply() 没有调用 slots.register —— 注册失败', 'bad')
+        return false
+      }
+
+      var entry = registered.entry
+      addBootCheck('entry.name === "game.stage" / id === "complexweeper"',
+        entry.name === 'game.stage' && entry.id === 'complexweeper')
+      addBootCheck('entry.label() === "复扫雷"', typeof entry.label === 'function' && entry.label() === '复扫雷')
+      var matched = entry.select({ gameId: 'complexweeper' })
+      var other = entry.select({ gameId: '2048' })
+      addBootCheck('select({gameId:"complexweeper"}) 非 null', matched !== null && matched !== undefined)
+      addBootCheck('select({gameId:"2048"}) === null', other === null)
+      addBootCheck('MATCHED 是冻结对象且两次 select 同一引用',
+        Object.isFrozen(matched) && entry.select({ gameId: 'complexweeper' }) === matched)
+      addBootCheck('测试探针 window.__DSH_GAME_COMPLEXSWEEPER__ 存在',
+        !!window.__DSH_GAME_COMPLEXSWEEPER__)
+      addBootCheck('内联引擎已还原 window.CS（无残留）', window.CS === undefined)
+
+      R.render(R.createElement(registered.Component, { matched: matched }), gameRoot)
+      var rootNode = gameRoot.querySelector('[data-dsh-game="complexweeper"]')
+      addBootCheck('用 fake-react 渲染注册组件（props: {matched}）', !!rootNode)
+      addBootCheck('canvas 已挂载', !!gameRoot.querySelector('canvas'))
+      setBootLine('client.js 已加载并渲染；registration 校验完成', 'ok')
+      return true
+    } catch (error) {
+      setBootLine('启动失败：' + (error && error.message ? error.message : String(error)), 'bad')
+      window.__recordPreviewError('error', 'preview boot failed: ' + (error && error.stack ? error.stack : error))
+      return false
+    }
+  }
+
+  /* ================================================================== *
+   * 二、页面控制：主题 / 舞台尺寸 / 重挂 / 清档
+   * ================================================================== */
+
+  function setTheme(next) {
+    currentTheme = next
+    document.body.setAttribute('data-theme', next)
+    var button = $('theme-toggle')
+    button.setAttribute('aria-pressed', String(next === 'dark'))
+    button.textContent = next === 'dark' ? '切换主题：暗色' : '切换主题：亮色'
+    window.dispatchEvent(new Event('resize'))
+  }
+
+  $('theme-toggle').addEventListener('click', function () {
+    setTheme(currentTheme === 'dark' ? 'light' : 'dark')
+  })
+
+  function setStageSize(width, height) {
+    stage.style.width = width + 'px'
+    stage.style.height = height + 'px'
+    $('stage-size-label').textContent = width + ' × ' + height
+    var buttons = document.querySelectorAll('#size-row button')
+    for (var i = 0; i < buttons.length; i += 1) {
+      var button = buttons[i]
+      button.setAttribute('aria-pressed',
+        String(Number(button.getAttribute('data-w')) === width && Number(button.getAttribute('data-h')) === height))
+    }
+    window.dispatchEvent(new Event('resize'))
+  }
+  var sizeButtons = document.querySelectorAll('#size-row button')
+  for (var sizeIndex = 0; sizeIndex < sizeButtons.length; sizeIndex += 1) {
+    sizeButtons[sizeIndex].addEventListener('click', function (event) {
+      setStageSize(Number(event.currentTarget.getAttribute('data-w')),
+        Number(event.currentTarget.getAttribute('data-h')))
+    })
+  }
+
+  function renderGame() {
+    if (!registered) return
+    var seam = window.__DSH_GAME_COMPLEXSWEEPER__
+    var matched = registered.entry.select({ gameId: seam ? seam.GAME_ID : 'complexweeper' })
+    R.render(R.createElement(registered.Component, { matched: matched }), gameRoot)
+  }
+  function unmountGame() {
+    if (!R) return
+    R.unmountComponentAtNode(gameRoot)
+    while (gameRoot.firstChild) gameRoot.removeChild(gameRoot.firstChild)
+  }
+  function remountGame() {
+    if (!registered) return
+    try {
+      unmountGame()
+      renderGame()
+      refreshLiveStatus()
+    } catch (error) {
+      setBootLine('重挂失败：' + (error && error.message ? error.message : String(error)), 'bad')
+      window.__recordPreviewError('error', 'preview remount failed: ' + (error && error.stack ? error.stack : error))
+    }
+  }
+  $('remount').addEventListener('click', remountGame)
+  $('clear-save').addEventListener('click', function () {
+    if (!registered) return
+    try {
+      unmountGame()
+      var seam = window.__DSH_GAME_COMPLEXSWEEPER__
+      if (seam) window.localStorage.removeItem(seam.STORE_KEY)
+      renderGame()
+      refreshLiveStatus()
+    } catch (error) {
+      setBootLine('清档重挂失败：' + (error && error.message ? error.message : String(error)), 'bad')
+      window.__recordPreviewError('error', 'preview clear-save failed: ' + (error && error.stack ? error.stack : error))
+    }
+  })
+
+  /* ================================================================== *
+   * 三、交互辅助（等价于真人用鼠标点，供按钮和 browser_eval 调用）
+   * ================================================================== */
+
+  function seamApi() {
+    return window.__DSH_GAME_COMPLEXSWEEPER__
+  }
+  function currentGame() {
+    var seam = seamApi()
+    return seam ? seam.getLastGame() : null
+  }
+  function findCanvas() {
+    return gameRoot.querySelector('canvas')
+  }
+  function canvasRect() {
+    var canvas = findCanvas()
+    return canvas ? canvas.getBoundingClientRect() : null
+  }
+  function pointForCell(row, col) {
+    var game = currentGame()
+    if (!game) throw new Error('游戏实例未就绪')
+    var point = game.cellPoint(row, col)
+    if (!point) throw new Error('舞台太小或尚未布局，拿不到格子坐标')
+    var rect = canvasRect()
+    if (!rect) throw new Error('canvas 未就绪')
+    return { clientX: rect.left + point.x, clientY: rect.top + point.y }
+  }
+  function dispatchPointer(row, col, button, type, extra) {
+    var canvas = findCanvas()
+    if (!canvas) throw new Error('canvas 未就绪')
+    var point = pointForCell(row, col)
+    var init = {
+      clientX: point.clientX,
+      clientY: point.clientY,
+      bubbles: true,
+      cancelable: true,
+      button: button,
+      buttons: button === 0 ? 1 : button === 2 ? 2 : 4,
+    }
+    if (extra) for (var key in extra) init[key] = extra[key]
+    var event
+    try {
+      event = new PointerEvent(type, init)
+    } catch (error) {
+      event = new MouseEvent(type, init)
+    }
+    canvas.dispatchEvent(event)
+    return event
+  }
+  function clickCell(row, col, button) {
+    var b = typeof button === 'number' ? button : 0
+    dispatchPointer(row, col, b, 'pointerdown', { pointerId: 1, pointerType: 'mouse', isPrimary: true })
+  }
+  function rightClickCell(row, col) {
+    clickCell(row, col, 2)
+    var canvas = findCanvas()
+    if (canvas) {
+      var point = pointForCell(row, col)
+      try {
+        canvas.dispatchEvent(new MouseEvent('contextmenu', {
+          clientX: point.clientX, clientY: point.clientY, bubbles: true, cancelable: true,
+        }))
+      } catch (error) {
+        /* ignore */
+      }
+    }
+  }
+  function doubleClickCell(row, col) {
+    dispatchPointer(row, col, 0, 'dblclick', {})
+  }
+
+  function rowColOf(cell, cols) {
+    return { row: Math.floor(cell / cols), col: cell % cols }
+  }
+
+  function firstHiddenCell(game, predicate) {
+    var engine = game.getGame()
+    for (var i = 0; i < engine.n; i += 1) {
+      if (engine.open[i] !== 0) continue
+      if (predicate && !predicate(engine, i)) continue
+      return i
+    }
+    return -1
+  }
+
+  function clickFirstHiddenCell() {
+    var game = currentGame()
+    var cell = firstHiddenCell(game)
+    if (cell < 0) return false
+    var info = rowColOf(cell, game.getGame().w)
+    clickCell(info.row, info.col, 0)
+    return true
+  }
+
+  function flagCellAs(row, col, type) {
+    var game = currentGame()
+    var engine = game.getGame()
+    var cell = row * engine.w + col
+    if (engine.open[cell] !== 0) return false
+    for (var attempt = 0; attempt < 5; attempt += 1) {
+      if (engine.flag[cell] === type) return true
+      rightClickCell(row, col)
+    }
+    return engine.flag[cell] === type
+  }
+
+  function demoStart() {
+    var game = currentGame()
+    if (!game) return false
+    if (game.getState().started) return true
+    var engine = game.getGame()
+    var center = Math.floor(engine.h / 2) * engine.w + Math.floor(engine.w / 2)
+    var info = rowColOf(center, engine.w)
+    clickCell(info.row, info.col, 0)
+    setDemoStatus('已左键点开中心格开局')
+    return true
+  }
+
+  function demoFlags() {
+    demoStart()
+    var game = currentGame()
+    var engine = game.getGame()
+    var placed = 0
+    for (var type = 1; type <= 4; type += 1) {
+      var cell = firstHiddenCell(game, function (g, i) {
+        return g.flag[i] === 0
+      })
+      if (cell < 0) break
+      var info = rowColOf(cell, engine.w)
+      if (flagCellAs(info.row, info.col, type)) placed += 1
+    }
+    setDemoStatus('已插旗 ' + placed + ' 类（+1/−1/+i/−i）')
+    return placed
+  }
+
+  function findJudgeFailCell(game) {
+    var engine = game.getGame()
+    for (var i = 0; i < engine.n; i += 1) {
+      if (engine.open[i] === 0 || engine.mine[i] !== 0) continue
+      var neighbors = engine.nbrs(i)
+      var mineNeighbors = neighbors.filter(function (j) { return engine.mine[j] !== 0 })
+      var flagNeighbors = neighbors.filter(function (j) { return engine.flag[j] !== 0 })
+      var closable = neighbors.filter(function (j) {
+        return engine.mine[j] === 0 && engine.open[j] === 0
+      })
+      /* 邻域没有旗、但确实有雷 → 总旗数一定对不上，判据必然失败 */
+      if (mineNeighbors.length > 0 && flagNeighbors.length === 0 && closable.length > 0) return i
+    }
+    return -1
+  }
+
+  function demoJudgeFail() {
+    demoStart()
+    var game = currentGame()
+    var cell = findJudgeFailCell(game)
+    if (cell < 0) {
+      setDemoStatus('当前局面没有合适的判据格（换一局再试）')
+      return false
+    }
+    var engine = game.getGame()
+    var info = rowColOf(cell, engine.w)
+    game.chord(cell)
+    setDemoStatus('对 (行 ' + info.row + ', 列 ' + info.col + ') 发起展开：邻域未插旗 → 判据不通过')
+    return true
+  }
+
+  /* 截图辅助：每 800ms 触发一次判据失败，保证浏览器截图能捕到红色角标
+   * （client.js 里一次性提示 1.8s 后会自动清除）。dev-only。 */
+  var judgePulseTimer = 0
+  var judgePulseStop = 0
+  function judgeFailPulse(ms) {
+    demoStart()
+    if (judgePulseTimer) return false
+    judgePulseTimer = window.setInterval(function () {
+      var game = currentGame()
+      if (!game) return
+      var cell = findJudgeFailCell(game)
+      if (cell >= 0) game.chord(cell)
+    }, 800)
+    judgePulseStop = window.setTimeout(function () {
+      window.clearInterval(judgePulseTimer)
+      judgePulseTimer = 0
+    }, ms || 8000)
+    setDemoStatus('判据失败脉冲演示中（每 0.8s 一次，用于截图）')
+    return true
+  }
+
+  function demoLoss() {
+    demoStart()
+    var game = currentGame()
+    var engine = game.getGame()
+    var closedMines = []
+    var closedSafes = []
+    for (var i = 0; i < engine.n; i += 1) {
+      if (engine.open[i] !== 0) continue
+      if (engine.mine[i] !== 0) closedMines.push(i)
+      else closedSafes.push(i)
+    }
+    if (closedMines.length < 2 || closedSafes.length < 1) {
+      setDemoStatus('当前局面不足以演示复盘（换一局再试）')
+      return false
+    }
+    var correctMine = closedMines[0]
+    var boomMine = closedMines[1]
+    var correctInfo = rowColOf(correctMine, engine.w)
+    flagCellAs(correctInfo.row, correctInfo.col, engine.mine[correctMine])
+    var safeInfo = rowColOf(closedSafes[0], engine.w)
+    flagCellAs(safeInfo.row, safeInfo.col, engine.mine[correctMine] === 1 ? 2 : 1)
+    var boomInfo = rowColOf(boomMine, engine.w)
+    clickCell(boomInfo.row, boomInfo.col, 0)
+    setDemoStatus('踩雷：棋盘进入复盘（绿勾=标对，红叉=标错，暗雷=未标出的真雷）')
+    return true
+  }
+
+  function demoWin() {
+    var seam = seamApi()
+    if (!seam) return false
+    var E = seam.E
+    var g = new E.Game({ w: 9, h: 9, mines: 10 })
+    g.newGame(701)
+    g.startAt(40, 0)
+    var closedSafes = []
+    for (var i = 0; i < g.n; i += 1) {
+      if (g.mine[i] === 0 && g.open[i] === 0) closedSafes.push(i)
+    }
+    if (closedSafes.length < 1) return false
+    for (var k = 0; k < closedSafes.length - 1; k += 1) g.reveal(closedSafes[k], 0)
+    var last = closedSafes[closedSafes.length - 1]
+    /* 先卸载（destroy 会写一次旧局面），再写入目标存档，最后重挂 */
+    unmountGame()
+    window.localStorage.setItem(seam.STORE_KEY, JSON.stringify(seam.buildSave(g, 1, 4321)))
+    renderGame()
+    var game = currentGame()
+    var info = rowColOf(last, game.getGame().w)
+    clickCell(info.row, info.col, 0)
+    setDemoStatus('已翻开最后一格安全格 → 胜利（用时 0:04）')
+    return true
+  }
+
+  function demoExpert() {
+    var game = currentGame()
+    if (!game) return false
+    game.setDifficulty(3)
+    setDemoStatus('已切换到高级 30×16 · 99 雷')
+    return true
+  }
+
+  function setDemoStatus(text) {
+    $('demo-status').textContent = text
+    refreshLiveStatus()
+  }
+
+  $('demo-start').addEventListener('click', demoStart)
+  $('demo-flags').addEventListener('click', demoFlags)
+  $('demo-judge-fail').addEventListener('click', demoJudgeFail)
+  $('demo-loss').addEventListener('click', demoLoss)
+  $('demo-win').addEventListener('click', demoWin)
+  $('demo-expert').addEventListener('click', demoExpert)
+
+  function clickButton(label) {
+    var buttons = gameRoot.querySelectorAll('button')
+    for (var i = 0; i < buttons.length; i += 1) {
+      var text = (buttons[i].textContent || '').replace(/\s+/g, ' ').trim()
+      if (text === label || text.indexOf(label) >= 0) {
+        buttons[i].click()
+        return text
+      }
+    }
+    throw new Error('找不到按钮：' + label)
+  }
+  function buttonLabels() {
+    var out = []
+    var buttons = gameRoot.querySelectorAll('button')
+    for (var i = 0; i < buttons.length; i += 1) {
+      out.push((buttons[i].textContent || '').replace(/\s+/g, ' ').trim())
+    }
+    return out
+  }
+
+  /* ================================================================== *
+   * 四、实时状态 / 存档 / 错误面板
+   * ================================================================== */
+
+  function readSave() {
+    try {
+      var seam = seamApi()
+      if (!seam) return null
+      var raw = window.localStorage.getItem(seam.STORE_KEY)
+      return raw ? JSON.parse(raw) : null
+    } catch (error) {
+      return null
+    }
+  }
+  function readStatusText() {
+    var node = gameRoot.querySelector('[role="status"]')
+    return node ? node.textContent : ''
+  }
+  function boardSummary() {
+    var game = currentGame()
+    if (!game) return null
+    var state = game.getState()
+    var engine = game.getGame()
+    return {
+      started: state.started,
+      over: state.over,
+      win: state.win,
+      elapsedMs: state.elapsedMs,
+      status: state.status,
+      flags: state.flags,
+      opened: state.opened,
+      safe: state.safe,
+      typeTotal: state.typeTotal,
+      flagsOf: state.flagsOf,
+      correctFlags: state.correctFlags,
+      wrongFlags: state.wrongFlags,
+      boom: engine.boom,
+      startCell: engine.startCell,
+      w: engine.w,
+      h: engine.h,
+    }
+  }
+
+  function refreshLiveStatus() {
+    var node = $('live-status')
+    var seam = seamApi()
+    var canvas = findCanvas()
+    var summary = boardSummary()
+    if (!seam) {
+      node.textContent = 'seam 未安装'
+      return
+    }
+    var parts = []
+    if (summary) {
+      parts.push('状态：' + summary.status)
+      parts.push('难度 ' + (summary.w + '×' + summary.h))
+      parts.push('翻开 ' + summary.opened + '/' + summary.safe)
+      parts.push('旗 ' + summary.flags + '（+1 ' + summary.flagsOf[1] + ' / −1 ' + summary.flagsOf[2] +
+        ' / +i ' + summary.flagsOf[3] + ' / −i ' + summary.flagsOf[4] + '）')
+      parts.push('用时 ' + (summary.elapsedMs / 1000).toFixed(1) + 's')
+      if (summary.over) {
+        parts.push(summary.win ? '胜负：胜' : '胜负：负')
+        parts.push('标对 ' + summary.correctFlags + ' / 标错 ' + summary.wrongFlags)
+      }
+    } else {
+      parts.push('游戏实例未就绪')
+    }
+    if (canvas) {
+      parts.push('backing ' + canvas.width + '×' + canvas.height + '（dpr ' + window.devicePixelRatio + '）')
+    }
+    node.textContent = parts.join(' · ')
+  }
+
+  function refreshSavePreview() {
+    var save = readSave()
+    if (!save) {
+      $('save-preview').textContent = '（无）'
+      return
+    }
+    var state = save.state || {}
+    var lines = [
+      'key = ' + seamApi().STORE_KEY,
+      'schemaVersion = ' + save.schemaVersion + ' · difficulty = ' + save.difficulty,
+      'started = ' + state.started + ' · over = ' + state.over + ' · win = ' + state.win,
+      'mines = ' + state.mines + ' · elapsedMs = ' + state.elapsedMs + ' · moves = ' + state.moves,
+      'open = ' + (state.open ? state.open.reduce(function (a, b) { return a + (b ? 1 : 0) }, 0) : '?') + ' 格',
+      'flagsOf = ' + JSON.stringify(state.flagsOf),
+      'typeTotal = ' + JSON.stringify(state.typeTotal),
+    ]
+    $('save-preview').textContent = lines.join('\n')
+  }
+
+  function refreshErrorPanel() {
+    $('err-count').textContent = String(window.__errors.length)
+    $('rej-count').textContent = String(window.__rejections.length)
+    $('console-err-count').textContent = String(window.__consoleErrors.length)
+    $('err-count').className = 'err-count ' + (window.__errors.length ? 'bad' : 'ok')
+    $('rej-count').className = 'err-count ' + (window.__rejections.length ? 'bad' : 'ok')
+    $('console-err-count').className = 'err-count ' + (window.__consoleErrors.length ? 'bad' : 'ok')
+    var lines = []
+    window.__errors.forEach(function (entry) {
+      lines.push('[window.error] ' + entry.message + (entry.extra && entry.extra.stack ? '\n' + entry.extra.stack : ''))
+    })
+    window.__rejections.forEach(function (entry) {
+      lines.push('[unhandledrejection] ' + entry.message + (entry.extra && entry.extra.stack ? '\n' + entry.extra.stack : ''))
+    })
+    window.__consoleErrors.forEach(function (entry) {
+      lines.push('[console.error] ' + entry.message)
+    })
+    $('err-detail').textContent = lines.length ? lines.join('\n\n') : '（无）'
+  }
+
+  /* ================================================================== *
+   * 五、给 browser_eval 用的预览辅助（dev-only；等价于「真人用手点」）
+   * ================================================================== */
+
+  window.__preview = {
+    definition: function () { return window.__gameDefinition || null },
+    registered: function () { return registered },
+    booted: function () { return !!currentGame() },
+    errors: function () {
+      return {
+        windowErrors: window.__errors.slice(),
+        rejections: window.__rejections.slice(),
+        consoleErrors: window.__consoleErrors.slice(),
+      }
+    },
+    save: readSave,
+    statusText: readStatusText,
+    board: boardSummary,
+    canvas: function () { return findCanvas() },
+    canvasRect: canvasRect,
+    setStage: setStageSize,
+    setTheme: setTheme,
+    remount: remountGame,
+    clearSaveAndRemount: function () { $('clear-save').click() },
+    clickCell: clickCell,
+    rightClickCell: rightClickCell,
+    doubleClickCell: doubleClickCell,
+    clickFirstHiddenCell: clickFirstHiddenCell,
+    demoStart: demoStart,
+    demoFlags: demoFlags,
+    demoJudgeFail: demoJudgeFail,
+    judgeFailPulse: judgeFailPulse,
+    demoLoss: demoLoss,
+    demoWin: demoWin,
+    demoExpert: demoExpert,
+    clickButton: clickButton,
+    buttonLabels: buttonLabels,
+    refresh: function () {
+      refreshLiveStatus()
+      refreshSavePreview()
+      refreshErrorPanel()
+    },
+  }
+
+  /* ================================================================== *
+   * 六、启动顺序
+   * ================================================================== */
+
+  var booted = bootClient()
+  window.__previewBooted = booted
+  refreshLiveStatus()
+  refreshSavePreview()
+  refreshErrorPanel()
+  window.setInterval(function () {
+    refreshLiveStatus()
+    refreshSavePreview()
+    refreshErrorPanel()
+  }, 500)
+})()
+</script>
+</body>
+</html>

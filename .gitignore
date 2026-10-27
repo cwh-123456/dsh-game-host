@@ -1,0 +1,15 @@
+# 调研与解包证据（含 DSH 本体解包代码，不对外）
+.scratch/
+
+# 双会话协作信箱（内部流程记录）
+handoff/
+
+# 本机会话迁移脚本（依赖具体机器环境）
+tools/
+
+# 临时文件
+_x4.txt
+node_modules/
+*.log
+.DS_Store
+Thumbs.db

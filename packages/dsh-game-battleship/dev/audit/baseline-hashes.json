@@ -1,0 +1,16 @@
+{
+  "note": "Baseline captured by the independent verifier (teammate 'verifier') at the start of the Battleship task (2026-10-18), before finishing the audit. Used by check-host-untouched.mjs to prove packages/dsh-game-host/** and handoff/contract/** were not modified during the implementation.",
+  "createdAt": "2026-10-18T11:07:30.694Z",
+  "requiredUnchanged": {
+    "packages/dsh-game-host/client.js": "6ad9f3ca9ba1926153f87e4e1ca64076e566051667cb341fd3528f53365533cd",
+    "packages/dsh-game-host/cordis.patch.yml": "406c6e49ebfc92c3d4884582fc3b67fd1de40ecfe06bf80895d5c94a9566d5ec",
+    "packages/dsh-game-host/icon.svg": "5a2eed8c0c521353f2661dd8182e70c920993abc5c6b9101abcf5898573f153f",
+    "packages/dsh-game-host/index.js": "9b12920c5fffed9a27f2292e9434960f6e27927de6678e4021ad590aa8f37d9d",
+    "packages/dsh-game-host/locale/en.json": "aec0c9a4fc14a5abe333c35a446582655a5ab4ea23dc28540605bab81e18e012",
+    "packages/dsh-game-host/locale/zh.json": "ae8be702e036402229e6f9fb4a977ce9af4e5222c038574cd7e0e3c7a794119c",
+    "packages/dsh-game-host/package.json": "43e2ae6765636540290ab367ea7c13b77611ae49215c856e07cd3157134bb889",
+    "packages/dsh-game-host/README.md": "9801c9e5877e98d09091c0e6f215e368d2df522b75351650e752fd8838906579",
+    "handoff/contract/examples/game-register.js": "091ddeb9bdce5feb173bb72a1e6704144e68b4660aaecbc9bca117fefcfe421c",
+    "handoff/contract/game-plugin-api.v1.md": "56cfb257c7c66eae73470845480e6c6e097bfad90472f96c4b61f9da18d6a91c"
+  }
+}

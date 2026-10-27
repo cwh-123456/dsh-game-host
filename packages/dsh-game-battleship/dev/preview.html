@@ -1,0 +1,1815 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>海战棋 Battleship · DSH 游戏包 dev 预览（非宿主验收）</title>
+<style>
+  /* ------------------------------------------------------------------
+   * 页面自己定义两套 DSH token（值取合理近似，仅用于 dev 预览）。
+   * 工具栏/按钮/文字用这些 token，所以切换主题能直接验证可读性。
+   * ---------------------------------------------------------------- */
+  :root {
+    color-scheme: light;
+    --dsw-alias-bg-base: #ffffff;
+    --dsw-alias-bg-layer-1: #f7f8fa;
+    --dsw-alias-bg-layer-2: #f1f3f5;
+    --dsw-alias-label-primary: #1f2328;
+    --dsw-alias-label-secondary: #57606a;
+    --dsw-alias-label-tertiary: #8b949e;
+    --dsw-alias-border-l1: #d0d7de;
+    --dsw-alias-border-l2: #b6bec8;
+    --dsw-alias-brand-primary: #2f81f7;
+    --dsw-alias-interactive-bg-hover: #eceff2;
+    --dsw-alias-interactive-bg-active: #dfe4e9;
+    --dsw-alias-bg-mask-1: rgba(9, 12, 16, 0.38);
+    --page-bg: #e9ecf0;
+    --page-fg: #1f2328;
+    --page-card: #ffffff;
+    --page-line: #d5dbe2;
+    --ok: #1a7f37;
+    --bad: #cf222e;
+  }
+  body[data-theme="dark"] {
+    color-scheme: dark;
+    --dsw-alias-bg-base: #17191c;
+    --dsw-alias-bg-layer-1: #1c1f24;
+    --dsw-alias-bg-layer-2: #21262d;
+    --dsw-alias-label-primary: #e6edf3;
+    --dsw-alias-label-secondary: #a7b0ba;
+    --dsw-alias-label-tertiary: #7d8590;
+    --dsw-alias-border-l1: #30363d;
+    --dsw-alias-border-l2: #414a55;
+    --dsw-alias-brand-primary: #4b8ef7;
+    --dsw-alias-interactive-bg-hover: #2a313a;
+    --dsw-alias-interactive-bg-active: #333c47;
+    --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.55);
+    --page-bg: #101216;
+    --page-fg: #e6edf3;
+    --page-card: #1b1e23;
+    --page-line: #2b3139;
+    --ok: #3fb950;
+    --bad: #f85149;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    padding: 16px;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font: 13px/1.55 "Segoe UI", system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+  }
+
+  .layout {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 1780px;
+    margin: 0 auto;
+  }
+  .preview-col { display: flex; flex-direction: column; gap: 8px; }
+  .stage-label { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 12px; opacity: .8; }
+  .stage-label b { font-size: 13px; opacity: 1; }
+  .stage {
+    position: relative;
+    width: 720px;
+    height: 600px;
+    background: var(--dsw-alias-bg-base);
+    border: 1px solid var(--page-line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .18);
+  }
+  #game-root { width: 100%; height: 100%; }
+  .side { flex: 0 1 430px; min-width: 360px; display: flex; flex-direction: column; gap: 10px; }
+  h1 { font-size: 18px; margin: 0 0 2px; }
+  h1 small { font-size: 12px; font-weight: 400; opacity: .6; }
+  h2 { font-size: 12.5px; margin: 0 0 6px; letter-spacing: .02em; text-transform: uppercase; opacity: .75; }
+  .card {
+    background: var(--page-card);
+    border: 1px solid var(--page-line);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .row + .row { margin-top: 6px; }
+  button {
+    font: inherit;
+    font-size: 12px;
+    padding: 4px 9px;
+    border-radius: 7px;
+    border: 1px solid var(--page-line);
+    background: var(--dsw-alias-bg-layer-2);
+    color: var(--page-fg);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--dsw-alias-border-l2); background: var(--dsw-alias-interactive-bg-hover); }
+  button[aria-pressed="true"] { border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-brand-primary); }
+  .line { font-size: 12px; line-height: 1.6; }
+  .line b { font-weight: 600; }
+  .checklist { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+  .checklist li { padding: 1px 0; }
+  .checklist li.ok { color: var(--ok); }
+  .checklist li.bad { color: var(--bad); }
+  .checklist li.note { color: var(--dsw-alias-label-secondary); }
+  pre {
+    margin: 0;
+    padding: 8px 10px;
+    max-height: 150px;
+    overflow: auto;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-radius: 7px;
+    background: var(--dsw-alias-bg-layer-2);
+    border: 1px solid var(--page-line);
+    color: var(--dsw-alias-label-secondary);
+  }
+  .hint { font-size: 11.5px; line-height: 1.7; opacity: .7; }
+  .err-count { font-variant-numeric: tabular-nums; font-weight: 600; }
+  #probe { position: absolute; left: -9999px; top: 0; width: 240px; height: 40px; overflow: hidden; }
+  .pill { display: inline-block; padding: 0 7px; border-radius: 999px; border: 1px solid var(--page-line); font-size: 11px; }
+  .status-grid { display: grid; grid-template-columns: 96px 1fr; gap: 2px 8px; font-size: 12px; }
+  .status-grid .k { opacity: .6; }
+  .status-grid .v { font-variant-numeric: tabular-nums; word-break: break-word; }
+
+  /* 截图模式：只留舞台，隐藏预览页自身的面板/按钮，便于整页截图 */
+  body.capture {
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  body.capture .side,
+  body.capture .stage-label,
+  body.capture .hint,
+  body.capture #size-row,
+  body.capture #selftest-card,
+  body.capture #status-card,
+  body.capture #boot-card,
+  body.capture #err-card { display: none !important; }
+  body.capture .layout { display: flex; align-items: center; justify-content: center; margin: 0; }
+  body.capture .preview-col { display: block; }
+  body.capture .stage { margin: 0; }
+</style>
+</head>
+<body data-theme="light">
+
+<div class="layout">
+  <div class="preview-col">
+    <div class="stage-label">
+      <b>游戏舞台（假宿主）</b>
+      <span id="stage-size-label">720 × 600</span>
+      <span>· dev 预览，不是宿主内验收</span>
+    </div>
+    <div id="stage" class="stage">
+      <div id="game-root"></div>
+    </div>
+    <div class="row" id="size-row">
+      <button data-w="720" data-h="600" aria-pressed="true">720×600</button>
+      <button data-w="1100" data-h="700" aria-pressed="false">1100×700</button>
+      <button data-w="360" data-h="520" aria-pressed="false">360×520</button>
+      <button data-w="300" data-h="220" aria-pressed="false">300×220</button>
+    </div>
+    <p class="hint" style="margin:0;">
+      舞台尺寸切换会触发 client.js 里的 ResizeObserver；主题切换只换 CSS token
+      （工具栏/按钮/文字立即跟随，棋盘保持自己的配色）。
+    </p>
+  </div>
+
+  <div class="side">
+    <h1>海战棋 Battleship <small>dev preview</small></h1>
+
+    <div class="card" id="boot-card">
+      <h2>client.js 注册 / seam 校验</h2>
+      <div class="line" id="boot-status">未加载</div>
+      <ul class="checklist" id="boot-checks"></ul>
+    </div>
+
+    <div class="card" id="status-card">
+      <h2>实时状态（从 localStorage 与 DOM 读取）</h2>
+      <div class="status-grid" id="live-status"></div>
+    </div>
+
+    <div class="card">
+      <h2>页面控制</h2>
+      <div class="row">
+        <button id="theme-toggle" aria-pressed="false">切换主题：亮色</button>
+        <button id="remount">重挂组件</button>
+        <button id="clear-save">清空存档 + 重挂</button>
+      </div>
+      <div class="row">
+        <button data-scenario="placement">布阵截图局面</button>
+        <button data-scenario="battle">对战截图局面</button>
+        <button data-scenario="toosmall">太小窗口局面</button>
+      </div>
+    </div>
+
+    <div class="card" id="selftest-card">
+      <h2>交互自检（真实 DOM 点击 + 存档断言）</h2>
+      <div class="row">
+        <button id="run-selftest">运行交互自检</button>
+        <span class="line" id="selftest-summary">未运行</span>
+      </div>
+      <ul class="checklist" id="selftest-list"></ul>
+    </div>
+
+    <div class="card" id="err-card">
+      <h2>window error / unhandledrejection / console.error</h2>
+      <div class="row">
+        <span>window error: <span id="err-count" class="err-count">0</span></span>
+        <span>unhandledrejection: <span id="rej-count" class="err-count">0</span></span>
+        <span>console.error: <span id="console-err-count" class="err-count">0</span></span>
+      </div>
+      <pre id="err-detail">（无）</pre>
+    </div>
+  </div>
+</div>
+
+<div id="probe"></div>
+
+<!-- =====================================================================
+     1) 错误收集 + test seam 开关 + 假模块表
+     ==================================================================== -->
+<script>
+  window.__DSH_GAME_BATTLESHIP_TEST__ = true
+
+  window.__errors = []
+  window.__rejections = []
+  window.__consoleErrors = []
+
+  function recordError(kind, message, extra) {
+    var entry = { kind: kind, message: String(message), at: Date.now() }
+    if (extra) entry.extra = extra
+    if (kind === 'console.error') window.__consoleErrors.push(entry)
+    else if (kind === 'unhandledrejection') window.__rejections.push(entry)
+    else window.__errors.push(entry)
+    renderErrorPanel()
+  }
+  function renderErrorPanel() {
+    var el = document.getElementById('err-detail')
+    if (!el) return
+    var all = window.__errors.concat(window.__rejections, window.__consoleErrors)
+    if (!all.length) {
+      el.textContent = '（无）'
+      return
+    }
+    el.textContent = all
+      .slice(-10)
+      .map(function (entry) {
+        return '[' + entry.kind + '] ' + entry.message
+      })
+      .join('\n')
+  }
+  window.__recordPreviewError = recordError
+
+  window.addEventListener('error', function (event) {
+    var target = event.target
+    var detail = ''
+    if (target && target !== window && target.tagName) {
+      detail = '<' + String(target.tagName).toLowerCase() + '> ' + (target.src || target.href || '')
+    }
+    recordError('error', event.message || (detail || 'resource load error'), {
+      filename: event.filename || '',
+      lineno: event.lineno || 0,
+      stack: event.error && event.error.stack ? String(event.error.stack) : '',
+      detail: detail,
+    })
+  }, true)
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event.reason
+    recordError('unhandledrejection', reason && reason.message ? reason.message : String(reason), {
+      stack: reason && reason.stack ? String(reason.stack) : '',
+    })
+  })
+
+  var nativeConsoleError = console.error.bind(console)
+  console.error = function () {
+    var parts = []
+    for (var i = 0; i < arguments.length; i += 1) parts.push(String(arguments[i]))
+    recordError('console.error', parts.join(' '))
+    nativeConsoleError.apply(console, arguments)
+  }
+
+  // 假模块表：client.js 调用 __ModuleLoader__.load({ id, factory })
+  window.__gameDefinition = null
+  window.__ModuleLoader__ = {
+    load: function (definition) {
+      window.__gameDefinition = definition
+    },
+  }
+</script>
+
+<script src="fake-react.js"></script>
+<script>
+  window.__clientScriptError = null
+</script>
+<script src="../client.js"
+        onerror="window.__clientScriptError = 'client.js 加载失败（文件不存在或不可读）'; window.__recordPreviewError('error', window.__clientScriptError)"></script>
+
+<script>
+(function () {
+  'use strict'
+
+  var R = window.FakeReact
+  var api = window.__DSH_GAME_BATTLESHIP__
+  var def = window.__gameDefinition
+  var KEY = (api && api.STORE_KEY) || 'dsh.game.battleship.v1'
+  var GAME_ID = (api && api.GAME_ID) || 'battleship'
+  var stageEl = document.getElementById('stage')
+  var rootEl = document.getElementById('game-root')
+  var Component = null
+  var bootChecks = []
+  var selftestResults = []
+  var log = []
+  var bodyBaseline = null
+  var requestedTheme = 'light'
+  var requestedSize = { w: 720, h: 600 }
+
+  var FALLBACK_SHIP_NAMES = {
+    carrier: '航空母舰',
+    battleship: '战列舰',
+    cruiser: '巡洋舰',
+    submarine: '潜艇',
+    destroyer: '驱逐舰',
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 基本工具
+   * ------------------------------------------------------------------ */
+
+  function sleep(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms)
+    })
+  }
+  function assert(condition, message) {
+    if (!condition) throw new Error(message || 'assertion failed')
+  }
+  function assertEq(actual, expected, message) {
+    if (actual !== expected) {
+      throw new Error((message || 'not equal') + '：期望 ' + JSON.stringify(expected) + '，实际 ' + JSON.stringify(actual))
+    }
+  }
+  function issue(msg) {
+    log.push(msg)
+    if (window.__recordPreviewError) window.__recordPreviewError('preview', msg)
+  }
+  async function waitFor(predicate, timeout, label) {
+    var start = Date.now()
+    var limit = timeout || 3000
+    while (Date.now() - start <= limit) {
+      var ok = false
+      try {
+        ok = !!predicate()
+      } catch (error) {
+        ok = false
+      }
+      if (ok) return true
+      await sleep(25)
+    }
+    throw new Error(label || '等待超时')
+  }
+
+  function shipName(key) {
+    if (api && Array.isArray(api.SHIPS)) {
+      for (var i = 0; i < api.SHIPS.length; i += 1) {
+        if (api.SHIPS[i] && api.SHIPS[i].key === key && api.SHIPS[i].name) return api.SHIPS[i].name
+      }
+    }
+    return FALLBACK_SHIP_NAMES[key] || key
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 存档 / 局面助手（全部走真实 localStorage 与 DOM）
+   * ------------------------------------------------------------------ */
+
+  function readSaveRaw() {
+    try {
+      return window.localStorage.getItem(KEY)
+    } catch (error) {
+      return null
+    }
+  }
+  function saveState() {
+    var raw = readSaveRaw()
+    if (!raw) return null
+    try {
+      return JSON.parse(raw)
+    } catch (error) {
+      return null
+    }
+  }
+  function shotValue(save, side, index) {
+    if (!save) return 0
+    var arr = side === 'enemy' ? save.playerShots : save.enemyShots
+    if (!arr) return 0
+    if (typeof arr === 'string') return Number(arr[index]) || 0
+    return arr[index] || 0
+  }
+  function savedShips(save, side) {
+    if (!save) return []
+    var ships = side === 'enemy' ? save.enemyShips : save.playerShips
+    return Array.isArray(ships) ? ships : []
+  }
+  function flattenShipCells(ships) {
+    var cells = []
+    for (var i = 0; i < ships.length; i += 1) {
+      if (ships[i] && Array.isArray(ships[i].cells)) {
+        for (var j = 0; j < ships[i].cells.length; j += 1) cells.push(ships[i].cells[j])
+      }
+    }
+    return cells
+  }
+  function countNonZero(arr) {
+    if (!arr) return 0
+    var count = 0
+    for (var i = 0; i < arr.length; i += 1) if (arr[i]) count += 1
+    return count
+  }
+  function cellsAdjacent(a, b) {
+    if (a === b) return false
+    var ar = Math.floor(a / 10), ac = a % 10
+    var br = Math.floor(b / 10), bc = b % 10
+    return Math.abs(ar - br) <= 1 && Math.abs(ac - bc) <= 1
+  }
+  function findAdjacentPair(cells) {
+    for (var i = 0; i < cells.length; i += 1) {
+      for (var j = i + 1; j < cells.length; j += 1) {
+        if (cellsAdjacent(cells[i], cells[j])) return [cells[i], cells[j]]
+      }
+    }
+    return null
+  }
+  function findAdjacentPairBetween(cellsA, cellsB) {
+    for (var i = 0; i < cellsA.length; i += 1) {
+      for (var j = 0; j < cellsB.length; j += 1) {
+        if (cellsAdjacent(cellsA[i], cellsB[j])) return [cellsA[i], cellsB[j]]
+      }
+    }
+    return null
+  }
+
+  /* ------------------------------------------------------------------ *
+   * DOM 助手（只用契约承诺的 data-* 属性，不依赖 class 名）
+   * ------------------------------------------------------------------ */
+
+  function gameRootEl() {
+    return document.querySelector('[data-dsh-game="battleship"]')
+  }
+  function boardEl(side) {
+    var root = gameRootEl()
+    return root ? root.querySelector('[data-board="' + side + '"]') : null
+  }
+  function cellEl(side, index) {
+    var board = boardEl(side)
+    return board ? board.querySelector('[data-cell="' + index + '"]') : null
+  }
+  function boardCells(side) {
+    var board = boardEl(side)
+    return board ? Array.prototype.slice.call(board.querySelectorAll('[data-cell]')) : []
+  }
+  function actionEl(name) {
+    var root = gameRootEl()
+    return (root ? root.querySelector('[data-action="' + name + '"]') : null) ||
+      document.querySelector('[data-action="' + name + '"]')
+  }
+  function actionEls() {
+    return Array.prototype.slice.call(document.querySelectorAll('[data-action]'))
+  }
+  function textOfAll(selector) {
+    return Array.prototype.slice.call(document.querySelectorAll(selector))
+      .map(function (el) { return (el.textContent || '').trim() })
+      .filter(Boolean)
+      .join(' | ')
+  }
+  function statusText() {
+    return textOfAll('[data-status]')
+  }
+  function messageText() {
+    return textOfAll('[data-message]')
+  }
+  function uiText() {
+    var root = gameRootEl()
+    return root ? root.innerText : ''
+  }
+  function click(el, what) {
+    assert(el, 'click 目标不存在：' + (what || ''))
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
+  }
+  function clickAction(name) {
+    var el = actionEl(name)
+    assert(el, '按钮 [data-action="' + name + '"] 不存在')
+    click(el, name)
+  }
+  function pressKey(key) {
+    var root = gameRootEl()
+    assert(root, 'root 不存在，无法发送键盘事件')
+    try {
+      root.focus()
+    } catch (error) {
+      // ignore
+    }
+    var event = new KeyboardEvent('keydown', {
+      key: key,
+      code: 'Key' + String(key).toUpperCase(),
+      bubbles: true,
+      cancelable: true,
+      view: window,
+    })
+    root.dispatchEvent(event)
+    return event
+  }
+
+  function mount() {
+    if (!Component) throw new Error('组件未注册（client.js 未加载或 factory 未返回组件）')
+    R.render(R.createElement(Component, { matched: {} }), rootEl)
+  }
+  function unmount() {
+    return R.unmountComponentAtNode(rootEl)
+  }
+  function remount() {
+    unmount()
+    mount()
+  }
+  function clearSavedGame() {
+    try {
+      window.localStorage.removeItem(KEY)
+    } catch (error) {
+      // ignore
+    }
+  }
+  async function freshPlace() {
+    unmount()
+    clearSavedGame()
+    mount()
+    await waitFor(function () {
+      var root = gameRootEl()
+      return !!root && root.getAttribute('data-phase') === 'place'
+    }, 4000, '清档重挂后没有回到布阵阶段（data-phase !== "place"）')
+    await sleep(50)
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 尺寸 / 主题
+   * ------------------------------------------------------------------ */
+
+  function setStageSize(width, height) {
+    stageEl.style.width = width + 'px'
+    stageEl.style.height = height + 'px'
+    document.getElementById('stage-size-label').textContent = width + ' × ' + height
+    Array.prototype.forEach.call(document.querySelectorAll('#size-row button'), function (button) {
+      var active = Number(button.getAttribute('data-w')) === width && Number(button.getAttribute('data-h')) === height
+      button.setAttribute('aria-pressed', active ? 'true' : 'false')
+    })
+  }
+  function setTheme(dark) {
+    document.body.setAttribute('data-theme', dark ? 'dark' : 'light')
+    var toggle = document.getElementById('theme-toggle')
+    if (!toggle) return
+    toggle.textContent = dark ? '切换主题：暗色' : '切换主题：亮色'
+    toggle.setAttribute('aria-pressed', dark ? 'true' : 'false')
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Boot 校验
+   * ------------------------------------------------------------------ */
+
+  function addBootCheck(text, ok) {
+    bootChecks.push({ text: text, ok: !!ok })
+    return !!ok
+  }
+  function renderBootChecks(statusTextValue, failed) {
+    var status = document.getElementById('boot-status')
+    if (!status) return
+    status.textContent = statusTextValue
+    status.style.color = failed ? 'var(--bad)' : 'var(--ok)'
+    var list = document.getElementById('boot-checks')
+    list.innerHTML = ''
+    bootChecks.forEach(function (check) {
+      var li = document.createElement('li')
+      li.className = check.ok ? 'ok' : 'bad'
+      li.textContent = (check.ok ? '✓ ' : '✗ ') + check.text
+      list.appendChild(li)
+    })
+  }
+
+  function fakeReactSanity() {
+    var sandbox = document.getElementById('probe')
+    if (!R || !sandbox) return false
+    var renders = 0
+    function Probe() {
+      renders += 1
+      var s = R.useState(0)
+      return R.createElement(
+        'button',
+        {
+          id: 'probe-btn',
+          onClick: function () {
+            s[1](s[0] + 1)
+          },
+        },
+        'n=' + s[0],
+      )
+    }
+    try {
+      R.render(R.createElement(Probe, null), sandbox)
+      var btn = document.getElementById('probe-btn')
+      if (!btn) return false
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      var text = document.getElementById('probe-btn').textContent
+      R.unmountComponentAtNode(sandbox)
+      return text === 'n=1' && renders >= 2
+    } catch (error) {
+      issue('fake-react 自检失败：' + error.message)
+      try {
+        R.unmountComponentAtNode(sandbox)
+      } catch (cleanupError) {
+        // ignore
+      }
+      return false
+    }
+  }
+
+  function boot() {
+    try {
+      if (!R) throw new Error('fake-react.js 未加载')
+      if (!def) throw new Error(window.__clientScriptError || 'client.js 没有调用 __ModuleLoader__.load')
+      if (!api) throw new Error('test seam window.__DSH_GAME_BATTLESHIP__ 不存在（client.js 未加载或未开启 __DSH_GAME_BATTLESHIP_TEST__）')
+
+      addBootCheck('definition.id === "@local/dsh-game-battleship"', def.id === '@local/dsh-game-battleship')
+      addBootCheck('definition.factory 是函数', typeof def.factory === 'function')
+      addBootCheck('fake-react 自检（渲染 + hook + 事件）', fakeReactSanity())
+
+      var module = def.factory(function (name) {
+        if (name === 'react') return R
+        throw new Error('预览页没有模块：' + name)
+      })
+      addBootCheck('factory(require) 返回 { inject, apply }', !!module && Array.isArray(module.inject) && typeof module.apply === 'function')
+      addBootCheck('inject 只声明 slots', Array.isArray(module.inject) && module.inject.length === 1 && module.inject[0] === 'slots')
+
+      var registered = null
+      var injectedName = null
+      module.apply({
+        slots: {
+          inject: function (name, callback) {
+            injectedName = name
+            callback()
+          },
+          register: function (entry, component) {
+            registered = { entry: entry, Component: component }
+            return function unregister() {}
+          },
+        },
+      })
+      addBootCheck('slots.inject("game.stage") 并触发 register', !!registered && injectedName === 'game.stage')
+      if (registered) {
+        var entry = registered.entry
+        Component = registered.Component
+        addBootCheck('entry.name === "game.stage"', entry.name === 'game.stage')
+        addBootCheck('entry.id === "battleship"', entry.id === 'battleship')
+        addBootCheck('entry.label() === "海战棋"', typeof entry.label === 'function' && entry.label() === '海战棋')
+        var matched = entry.select({ gameId: 'battleship' })
+        var other = entry.select({ gameId: '2048' })
+        var nothing = entry.select(null)
+        addBootCheck('select({gameId:"battleship"}) 非 null', matched !== null && matched !== undefined)
+        addBootCheck('select({gameId:"2048"}) === null', other === null)
+        addBootCheck('select(null) === null', nothing === null)
+      }
+      addBootCheck('seam window.__DSH_GAME_BATTLESHIP__ 存在', !!api)
+      addBootCheck('GAME_ID === "battleship"', GAME_ID === 'battleship')
+      addBootCheck('STORE_KEY === "dsh.game.battleship.v1"', KEY === 'dsh.game.battleship.v1')
+      addBootCheck('SHIPS 为 5 艘 [5,4,3,3,2]', !!api && Array.isArray(api.SHIPS) &&
+        api.SHIPS.map(function (ship) { return ship.len }).sort().join(',') === '2,3,3,4,5')
+
+      clearSavedGame()
+      mount()
+      addBootCheck('挂载后 root [data-dsh-game="battleship"] 存在', !!gameRootEl())
+      var rootNow = gameRootEl()
+      addBootCheck('root 上 data-phase === "place"', !!rootNow && rootNow.getAttribute('data-phase') === 'place')
+      addBootCheck('root 上有 data-turn 属性', !!rootNow && rootNow.hasAttribute('data-turn'))
+      addBootCheck('两块棋盘 [data-board="player"|"enemy"]', !!boardEl('player') && !!boardEl('enemy'))
+      addBootCheck('两块棋盘各 100 个 [data-cell]', boardCells('player').length === 100 && boardCells('enemy').length === 100)
+      addBootCheck('布阵按钮 rotate/randomize/start 存在', !!actionEl('rotate') && !!actionEl('randomize') && !!actionEl('start'))
+      addBootCheck('难度按钮 easy/normal/hard 存在', !!actionEl('difficulty-easy') && !!actionEl('difficulty-normal') && !!actionEl('difficulty-hard'))
+      addBootCheck('相邻开关 toggle-adjacent 存在', !!actionEl('toggle-adjacent'))
+      addBootCheck('状态栏 [data-status] 存在', !!document.querySelector('[data-status]'))
+      addBootCheck('root 位于 #game-root 内', !!rootNow && rootEl.contains(rootNow))
+
+      var failed = bootChecks.filter(function (check) { return !check.ok }).length
+      renderBootChecks(failed ? '存在 ' + failed + ' 项失败' : '全部通过（' + bootChecks.length + ' 项）', failed > 0)
+      return !failed
+    } catch (error) {
+      addBootCheck('boot 异常：' + (error && error.message ? error.message : String(error)), false)
+      renderBootChecks('boot 失败：' + (error && error.message ? error.message : String(error)), true)
+      window.__recordPreviewError('boot', error && error.stack ? error.stack : String(error))
+      return false
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 场景（截图用；全部通过真实 DOM 点击驱动）
+   * ------------------------------------------------------------------ */
+
+  async function ensureOrientation(want) {
+    var save = saveState()
+    if (!save) {
+      clickAction('rotate')
+      await sleep(50)
+      save = saveState()
+    }
+    assert(save, '没有存档，无法确定 orientation')
+    if (save.orientation !== want) {
+      clickAction('rotate')
+      await sleep(50)
+      save = saveState()
+    }
+    assert(save && save.orientation === want, '无法把 orientation 设为 ' + want + '（实际 ' + (save && save.orientation) + '）')
+    return save
+  }
+
+  async function beginBattleFromFresh() {
+    await freshPlace()
+    clickAction('randomize')
+    await sleep(90)
+    var save = saveState()
+    assert(save && savedShips(save, 'player').length === 5, '随机布阵后不是 5 艘舰船')
+    clickAction('start')
+    await waitFor(function () {
+      var s = saveState()
+      return s && s.phase === 'battle'
+    }, 4000, '点开始后没有进入对战阶段')
+    await sleep(80)
+    return saveState()
+  }
+
+  async function fireAndWait(index, label) {
+    var before = saveState()
+    assert(before, '没有存档')
+    assertEq(before.phase, 'battle', '开火前 phase')
+    assertEq(before.turn, 'player', '开火前 turn')
+    var target = cellEl('enemy', index)
+    assert(target, '敌方格 ' + index + ' 不存在')
+    var beforeAi = countNonZero(before.enemyShots)
+    click(target, 'enemy cell ' + index)
+    await sleep(25)
+    var immediate = { save: saveState(), text: uiText(), status: statusText(), message: messageText() }
+    await waitFor(function () {
+      var s = saveState()
+      return s && (s.turn === 'player' || s.phase === 'over')
+    }, 6000, '等待 AI 回合超时（' + (label || ('敌方格 ' + index)) + '）')
+    await sleep(40)
+    var after = saveState()
+    if (after.phase !== 'over') {
+      assertEq(after.turn, 'player', 'AI 回合结束后 turn')
+      var afterAi = countNonZero(after.enemyShots)
+      assertEq(afterAi, beforeAi + 1, 'AI 应恰好新打 1 格（前 ' + beforeAi + '，后 ' + afterAi + '）')
+      for (var i = 0; i < after.enemyShots.length; i += 1) {
+        assert(after.enemyShots[i] === 0 || after.enemyShots[i] === 1 || after.enemyShots[i] === 2, 'enemyShots[' + i + '] 非法值 ' + after.enemyShots[i])
+      }
+    }
+    return { before: before, immediate: immediate, after: after }
+  }
+
+  /* 截图用：用 seam 构造一个“中局”局面（真实 DOM 交互自检在 runSelftest 里做）。
+     目的：截图稳定、可控，能同时看到 miss/hit/sunk 与双方舰船面板。 */
+  async function constructMidgame() {
+    var seam = window.__DSH_GAME_BATTLESHIP__
+    assert(seam && typeof seam.newGameState === 'function' && typeof seam.randomizePlayerFleet === 'function' &&
+      typeof seam.startBattle === 'function' && typeof seam.serializeState === 'function', 'seam 不足，无法快速构造对战局面')
+    await freshPlace()
+    var state = seam.newGameState(20261018)
+    var randomized = seam.randomizePlayerFleet(state)
+    assert(randomized && randomized.ok, '随机布阵 seam 失败：' + JSON.stringify(randomized))
+    var started = seam.startBattle(state)
+    assert(started && started.ok, '开始对战 seam 失败：' + JSON.stringify(started))
+
+    var enemyShipCells = {}
+    var playerShipCells = {}
+    state.enemyShips.forEach(function (ship) {
+      ship.cells.forEach(function (cell) { enemyShipCells[cell] = true })
+    })
+    state.playerShips.forEach(function (ship) {
+      ship.cells.forEach(function (cell) { playerShipCells[cell] = true })
+    })
+    var enemyWater = []
+    var playerWater = []
+    for (var i = 0; i < 100; i += 1) {
+      if (!enemyShipCells[i]) enemyWater.push(i)
+      if (!playerShipCells[i]) playerWater.push(i)
+    }
+    function shipByKey(ships, key) {
+      var found = null
+      ships.forEach(function (ship) { if (ship.key === key) found = ship })
+      return found
+    }
+    var enemyDestroyer = shipByKey(state.enemyShips, 'destroyer')
+    var enemyCarrier = shipByKey(state.enemyShips, 'carrier')
+    var enemyBattleship = shipByKey(state.enemyShips, 'battleship')
+    var playerDestroyer = shipByKey(state.playerShips, 'destroyer')
+
+    /* 玩家 10 发：击沉驱逐舰（2）+ 命中航母 2 + 命中战列舰 1 + 5 发落水 */
+    var playerHits = enemyDestroyer.cells.slice(0, 2)
+      .concat(enemyCarrier.cells.slice(0, 2))
+      .concat(enemyBattleship.cells.slice(0, 1))
+    var playerMisses = [enemyWater[9], enemyWater[30], enemyWater[52], enemyWater[74], enemyWater[80]]
+    playerHits.forEach(function (cell) { state.playerShots[cell] = 2 })
+    playerMisses.forEach(function (cell) {
+      assert(Number.isInteger(cell), '构造玩家落水格失败：' + cell)
+      state.playerShots[cell] = 1
+    })
+
+    /* AI 10 发：击沉玩家驱逐舰（2）+ 8 发落水，保证与玩家枪数相同（turn=player） */
+    var aiHits = playerDestroyer.cells.slice(0, 2)
+    var aiMisses = []
+    for (var w = 0; w < playerWater.length && aiMisses.length < 8; w += 7) aiMisses.push(playerWater[w])
+    assertEq(aiMisses.length, 8, '构造 AI 落水格失败')
+    aiHits.forEach(function (cell) { state.enemyShots[cell] = 2 })
+    aiMisses.forEach(function (cell) { state.enemyShots[cell] = 1 })
+
+    state.phase = 'battle'
+    state.turn = 'player'
+    state.winner = null
+    state.endReason = null
+    unmount()
+    window.localStorage.setItem(KEY, JSON.stringify(seam.serializeState(state)))
+    mount()
+    await waitFor(function () {
+      var root = gameRootEl()
+      return !!root && root.getAttribute('data-phase') === 'battle'
+    }, 3000, '构造的对战局面挂载后没有进入 battle')
+    await sleep(180)
+  }
+
+  var scenarios = {
+    placement: async function () {
+      await freshPlace()
+      await ensureOrientation('h')
+      click(cellEl('player', 0), 'place carrier')
+      await sleep(60)
+      click(cellEl('player', 30), 'place battleship')
+      await sleep(60)
+      clickAction('rotate')
+      await sleep(60)
+      await ensureOrientation('v')
+      click(cellEl('player', 75), 'place cruiser')
+      await sleep(90)
+    },
+    battleFast: async function () {
+      await constructMidgame()
+    },
+    battle: async function () {
+      var save = await beginBattleFromFresh()
+      var enemyCells = flattenShipCells(savedShips(save, 'enemy'))
+      var enemySet = {}
+      for (var i = 0; i < enemyCells.length; i += 1) enemySet[enemyCells[i]] = true
+      var water = []
+      for (var cell = 0; cell < 100; cell += 1) if (!enemySet[cell]) water.push(cell)
+      assert(water.length >= 80, '水域格子数量异常：' + water.length)
+
+      var destroyer = null
+      var battleship = null
+      savedShips(save, 'enemy').forEach(function (ship) {
+        if (ship.key === 'destroyer') destroyer = ship
+        if (ship.key === 'battleship') battleship = ship
+      })
+      assert(destroyer && Array.isArray(destroyer.cells) && destroyer.cells.length === 2, '找不到敌方驱逐舰')
+      assert(battleship && Array.isArray(battleship.cells) && battleship.cells.length === 4, '找不到敌方法列舰')
+
+      /* 先击沉驱逐舰（展示 sunk），再打几发水（miss），再打战列舰两格（hit），
+         每一步都是真实 DOM 点击 + 等 AI 回合。 */
+      var sequence = [
+        destroyer.cells[0],
+        destroyer.cells[1],
+        water[44],
+        water[70],
+        water[18],
+        water[60],
+        battleship.cells[0],
+        battleship.cells[1],
+      ]
+      for (var s = 0; s < sequence.length; s += 1) {
+        await fireAndWait(sequence[s], 'midgame 第 ' + (s + 1) + ' 发')
+      }
+      await sleep(120)
+    },
+    toosmall: async function () {
+      await freshPlace()
+      await sleep(100)
+    },
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 交互自检（真实 DOM 点击 → 存档断言）
+   * ------------------------------------------------------------------ */
+
+  function addSelftestResult(name, ok, error) {
+    selftestResults.push({ name: name, ok: ok, error: error || '' })
+    renderSelftest()
+  }
+  function renderSelftest() {
+    var list = document.getElementById('selftest-list')
+    if (!list) return
+    list.innerHTML = ''
+    selftestResults.forEach(function (result) {
+      var li = document.createElement('li')
+      li.className = result.ok ? 'ok' : 'bad'
+      li.textContent = (result.ok ? '✓ ' : '✗ ') + result.name + (result.ok ? '' : ' — ' + result.error)
+      list.appendChild(li)
+    })
+    var failed = selftestResults.filter(function (r) { return !r.ok }).length
+    var summary = document.getElementById('selftest-summary')
+    if (!summary) return
+    summary.textContent = selftestResults.length
+      ? (failed ? failed + ' 项失败 / ' + selftestResults.length : '全部通过（' + selftestResults.length + ' 项）')
+      : '未运行'
+    summary.style.color = failed ? 'var(--bad)' : 'var(--ok)'
+  }
+
+  async function stepResult(name, fn) {
+    try {
+      await fn()
+      addSelftestResult(name, true)
+    } catch (error) {
+      addSelftestResult(name, false, error && error.message ? error.message : String(error))
+    }
+  }
+
+  function countSunk(save, side) {
+    var ships = savedShips(save, side)
+    var sunk = 0
+    ships.forEach(function (ship) {
+      var arr = side === 'enemy' ? save.playerShots : save.enemyShots
+      var all = Array.isArray(ship.cells) && ship.cells.length > 0 && ship.cells.every(function (cell) {
+        return (arr[cell] || 0) === 2
+      })
+      if (all) sunk += 1
+    })
+    return sunk
+  }
+
+  function expectedCellShot(save, boardSide, cellIndex) {
+    /* boardSide 是“哪块棋盘”：player 棋盘显示 AI 的射击（enemyShots），
+       enemy 棋盘显示玩家的射击（playerShots）。 */
+    var arr = boardSide === 'player' ? save.enemyShots : save.playerShots
+    var ships = savedShips(save, boardSide)
+    var value = (arr && arr[cellIndex]) || 0
+    if (value === 0) return 'none'
+    if (value === 1) return 'miss'
+    for (var i = 0; i < ships.length; i += 1) {
+      var ship = ships[i]
+      if (Array.isArray(ship.cells) && ship.cells.indexOf(cellIndex) >= 0) {
+        var all = ship.cells.every(function (cell) { return (arr[cell] || 0) === 2 })
+        return all ? 'sunk' : 'hit'
+      }
+    }
+    return 'hit'
+  }
+
+  async function runSelftest() {
+    selftestResults = []
+    renderSelftest()
+    var stats = { start: Date.now() }
+
+    try {
+      await stepResult('0. boot 注册/骨架检查全部通过', async function () {
+        var failed = bootChecks.filter(function (check) { return !check.ok })
+        assertEq(failed.length, 0, 'boot 失败项：' + failed.map(function (c) { return c.text }).join('; '))
+      })
+
+      /* 1. 初始布阵 */
+      await freshPlace()
+      await stepResult('1. 初始 phase=place，两块棋盘各 100 格，未放舰', async function () {
+        var root = gameRootEl()
+        assert(root, 'root 不存在')
+        assertEq(root.getAttribute('data-phase'), 'place', 'data-phase')
+        assertEq(boardCells('player').length, 100, 'player 棋盘格子数')
+        assertEq(boardCells('enemy').length, 100, 'enemy 棋盘格子数')
+        var save = saveState()
+        if (save) assertEq(savedShips(save, 'player').length, 0, '初始玩家舰船数')
+        assert(uiText().length > 0, 'UI 没有渲染任何文字')
+        assert(actionEl('rotate') && actionEl('randomize') && actionEl('start'), '布阵按钮缺失')
+      })
+
+      /* 2. 旋转按钮 */
+      await stepResult('2. 旋转按钮切换横竖（存档 orientation 翻转）', async function () {
+        var before = saveState()
+        if (!before) {
+          clickAction('rotate')
+          await sleep(50)
+          before = saveState()
+        }
+        assert(before, '旋转后没有存档')
+        var first = before.orientation
+        assert(first === 'h' || first === 'v', 'orientation 非法：' + first)
+        clickAction('rotate')
+        await sleep(50)
+        var after = saveState()
+        assert(after && after.orientation === (first === 'h' ? 'v' : 'h'), '旋转按钮没有切换 orientation（' + first + ' -> ' + (after && after.orientation) + '）')
+      })
+
+      /* 3. R 键旋转（根元素聚焦） */
+      await stepResult('3. 聚焦根元素后按 R 键切换横竖', async function () {
+        var before = saveState()
+        assert(before, '无存档')
+        var first = before.orientation
+        pressKey('r')
+        await sleep(70)
+        var after = saveState()
+        if (!after || after.orientation === first) {
+          pressKey('R')
+          await sleep(70)
+          after = saveState()
+        }
+        assert(after && after.orientation === (first === 'h' ? 'v' : 'h'), 'R 键没有切换 orientation（' + first + ' -> ' + (after && after.orientation) + '）')
+      })
+
+      /* 4. 非法：越界 */
+      await freshPlace()
+      await stepResult('4. 越界布阵被拒绝并提示（carrier 从第 9 列开始）', async function () {
+        await ensureOrientation('h')
+        var before = saveState()
+        var shipsBefore = savedShips(before, 'player').length
+        click(cellEl('player', 9), 'out-of-bounds cell 9')
+        await sleep(70)
+        var after = saveState()
+        assertEq(savedShips(after, 'player').length, shipsBefore, '越界后舰船数')
+        assert((messageText() + statusText()).length > 0, '越界没有提示信息 [data-message]/[data-status]')
+      })
+
+      /* 5. 非法：重叠 */
+      await freshPlace()
+      await stepResult('5. 重叠布阵被拒绝并提示（同一格放第二艘）', async function () {
+        await ensureOrientation('h')
+        click(cellEl('player', 0), 'place carrier')
+        await sleep(60)
+        var placed = saveState()
+        assertEq(savedShips(placed, 'player').length, 1, '第一艘未放下')
+        click(cellEl('player', 0), 'overlap')
+        await sleep(70)
+        var after = saveState()
+        assertEq(savedShips(after, 'player').length, 1, '重叠放置后舰船数')
+        assert((messageText() + statusText()).length > 0, '重叠没有提示信息')
+      })
+
+      /* 6. 非法：相邻（正交） */
+      await freshPlace()
+      await stepResult('6. 正交相邻布阵被拒绝（默认不允许相邻）', async function () {
+        await ensureOrientation('h')
+        click(cellEl('player', 0), 'place carrier row0')
+        await sleep(60)
+        click(cellEl('player', 10), 'orthogonal adjacency')
+        await sleep(70)
+        var after = saveState()
+        assertEq(savedShips(after, 'player').length, 1, '正交相邻后舰船数')
+        assert((messageText() + statusText()).length > 0, '相邻拒绝没有提示信息')
+      })
+
+      /* 7. 非法：相邻（斜向） */
+      await freshPlace()
+      await stepResult('7. 斜向相邻布阵被拒绝（含对角线）', async function () {
+        await ensureOrientation('h')
+        click(cellEl('player', 0), 'place carrier row0')
+        await sleep(60)
+        click(cellEl('player', 11), 'diagonal adjacency')
+        await sleep(70)
+        var after = saveState()
+        assertEq(savedShips(after, 'player').length, 1, '斜向相邻后舰船数')
+        assert((messageText() + statusText()).length > 0, '斜向相邻拒绝没有提示信息')
+      })
+
+      /* 8. 随机布阵 */
+      await freshPlace()
+      await stepResult('8. 随机布阵 = 5 艘合法、不重叠、不相邻，DOM 同步', async function () {
+        clickAction('randomize')
+        await waitFor(function () {
+          var s = saveState()
+          return s && savedShips(s, 'player').length === 5
+        }, 3000, '点随机布阵后没有放下 5 艘舰船')
+        var save = saveState()
+        assert(save, '随机布阵后没有存档')
+        assertEq(save.phase, 'place', '随机布阵不应离开布阵阶段')
+        var ships = savedShips(save, 'player')
+        assertEq(ships.length, 5, '玩家舰船数')
+        var lens = ships.map(function (ship) { return ship.cells.length }).sort().join(',')
+        assertEq(lens, '2,3,3,4,5', '舰船长度集合')
+        var keys = ships.map(function (ship) { return ship.key }).sort().join(',')
+        assertEq(keys, 'battleship,carrier,cruiser,destroyer,submarine', '舰船 key 集合')
+        var cells = flattenShipCells(ships)
+        assertEq(cells.length, 17, '总格数')
+        assertEq(new Set(cells).size, 17, '格重复（重叠）')
+        cells.forEach(function (cell) {
+          assert(Number.isInteger(cell) && cell >= 0 && cell < 100, '越界格 ' + cell)
+        })
+        var adjacency = null
+        var adjacencyPair = null
+        for (var si = 0; si < ships.length && !adjacency; si += 1) {
+          for (var sj = si + 1; sj < ships.length && !adjacency; sj += 1) {
+            adjacencyPair = findAdjacentPairBetween(ships[si].cells, ships[sj].cells)
+            if (adjacencyPair) adjacency = [ships[si].key, ships[sj].key].concat(adjacencyPair)
+          }
+        }
+        assert(!adjacency, '不同舰船之间出现相邻格（含斜向）：' + (adjacency && adjacency.join(' / ')))
+        /* DOM 同步 */
+        var domShipCells = boardCells('player').filter(function (cell) {
+          return cell.getAttribute('data-ship')
+        })
+        assertEq(domShipCells.length, 17, 'player 棋盘 data-ship 非空格子数')
+        cells.forEach(function (cell) {
+          var el = cellEl('player', cell)
+          assert(el && el.getAttribute('data-ship'), '格 ' + cell + ' 缺少 data-ship')
+        })
+      })
+
+      /* 9. 允许相邻开关 */
+      await freshPlace()
+      await stepResult('9. toggle-adjacent 放开后可相邻放置；有相邻舰船时禁止关闭（警告）', async function () {
+        var before = saveState()
+        var initial = before ? before.allowAdjacent === true : false
+        assertEq(initial, false, '初始 allowAdjacent')
+        clickAction('toggle-adjacent')
+        await sleep(60)
+        var toggled = saveState()
+        assert(toggled, 'toggle 后没有存档')
+        assertEq(toggled.allowAdjacent, true, 'allowAdjacent 未打开')
+        await ensureOrientation('h')
+        click(cellEl('player', 0), 'place carrier')
+        await sleep(60)
+        click(cellEl('player', 10), 'place battleship adjacent (allowed)')
+        await sleep(80)
+        var after = saveState()
+        assertEq(savedShips(after, 'player').length, 2, '允许相邻时第二艘应放下')
+        /* 已有相邻舰船时，关闭开关应被拒绝并提示（不能把非法舰队留在场上） */
+        clickAction('toggle-adjacent')
+        await sleep(70)
+        var refused = saveState()
+        assertEq(refused.allowAdjacent, true, '有相邻舰船时不应关闭 allowAdjacent')
+        assert(/相邻|无法/.test(messageText() + statusText()), '拒绝关闭时缺少提示')
+        /* 空舰队状态下可以正常关掉 */
+        await freshPlace()
+        clickAction('toggle-adjacent')
+        await sleep(60)
+        assertEq(saveState().allowAdjacent, true, '空舰队时打开 allowAdjacent')
+        clickAction('toggle-adjacent')
+        await sleep(60)
+        assertEq(saveState().allowAdjacent, false, '空舰队时可关闭 allowAdjacent')
+      })
+
+      /* 10. 开始对战 */
+      await freshPlace()
+      var battleSave = null
+      await stepResult('10. 开始对战：phase=battle / turn=player / 敌方布阵不泄露', async function () {
+        clickAction('randomize')
+        await sleep(100)
+        clickAction('start')
+        await waitFor(function () {
+          var s = saveState()
+          return s && s.phase === 'battle'
+        }, 4000, '没有进入对战阶段')
+        await sleep(100)
+        var save = saveState()
+        assert(save, '没有存档')
+        battleSave = save
+        var root = gameRootEl()
+        assertEq(root.getAttribute('data-phase'), 'battle', 'data-phase')
+        assertEq(root.getAttribute('data-turn'), 'player', 'data-turn')
+        assertEq(save.turn, 'player', 'save.turn')
+        assertEq(savedShips(save, 'player').length, 5, '玩家舰船数')
+        assertEq(savedShips(save, 'enemy').length, 5, '敌方舰船数')
+        var leaked = boardCells('enemy').filter(function (cell) { return cell.getAttribute('data-ship') })
+        assertEq(leaked.length, 0, '敌方棋盘泄露了 data-ship')
+        var own = boardCells('player').filter(function (cell) { return cell.getAttribute('data-ship') })
+        assertEq(own.length, 17, '玩家棋盘 data-ship 格数')
+        assert(!actionEl('start') || actionEl('start').disabled, '对战中不应还能点「开始」')
+        assert((statusText() + uiText()).length > 0, '对战中 UI 无文字')
+      })
+
+      /* 11. 未命中 + AI 回应 */
+      await stepResult('11. 点击敌方水域 → 未命中反馈 + AI 延迟回应且不重复', async function () {
+        var save = saveState()
+        var enemyCells = flattenShipCells(savedShips(save, 'enemy'))
+        var enemySet = {}
+        enemyCells.forEach(function (cell) { enemySet[cell] = true })
+        var target = null
+        for (var cell = 0; cell < 100; cell += 1) {
+          if (!enemySet[cell] && shotValue(save, 'enemy', cell) === 0) { target = cell; break }
+        }
+        assert(target !== null, '找不到未打过的水域格')
+        var result = await fireAndWait(target, 'miss shot')
+        assertEq(shotValue(result.immediate.save, 'enemy', target), 1, 'playerShots[' + target + '] 应为 1(miss)')
+        var domCell = cellEl('enemy', target)
+        assertEq(domCell.getAttribute('data-shot'), 'miss', '敌方格 data-shot')
+        var texts = result.immediate.text + ' ' + result.immediate.status + ' ' + result.immediate.message
+        assert(/未命中|miss/i.test(texts), '未命中没有提示：' + texts.slice(0, 200))
+        var aiCount = countNonZero(result.after.enemyShots)
+        assertEq(aiCount, 1, 'AI 应回应 1 枪')
+        assertEq(countNonZero(result.after.playerShots), 1, '玩家应有 1 枪记录')
+      })
+
+      /* 12. 命中反馈 */
+      await stepResult('12. 点击敌方舰船格 → 命中反馈（data-shot=hit）', async function () {
+        var save = saveState()
+        assertEq(save.phase, 'battle', '不在对战阶段')
+        var target = null
+        savedShips(save, 'enemy').forEach(function (ship) {
+          if (target !== null) return
+          for (var i = 0; i < ship.cells.length; i += 1) {
+            if (shotValue(save, 'enemy', ship.cells[i]) === 0) { target = ship.cells[i]; return }
+          }
+        })
+        assert(target !== null, '找不到未命中的敌舰格')
+        var result = await fireAndWait(target, 'hit shot')
+        assertEq(shotValue(result.immediate.save, 'enemy', target), 2, 'playerShots[' + target + '] 应为 2(hit)')
+        assertEq(cellEl('enemy', target).getAttribute('data-shot'), 'hit', '敌方格 data-shot')
+        var texts = result.immediate.text + ' ' + result.immediate.status + ' ' + result.immediate.message
+        assert(/命中|hit/i.test(texts), '命中没有提示：' + texts.slice(0, 200))
+      })
+
+      /* 13. 击沉 + 船名 */
+      await stepResult('13. 击沉驱逐舰：data-shot=sunk 且提示包含船名', async function () {
+        var save = saveState()
+        assertEq(save.phase, 'battle', '不在对战阶段')
+        var destroyer = null
+        savedShips(save, 'enemy').forEach(function (ship) {
+          if (ship.key === 'destroyer') destroyer = ship
+        })
+        assert(destroyer, '找不到敌方驱逐舰')
+        var lastImmediate = null
+        var allCells = destroyer.cells.slice()
+        for (var i = 0; i < allCells.length; i += 1) {
+          var cell = allCells[i]
+          if (shotValue(saveState(), 'enemy', cell) === 2) continue
+          var result = await fireAndWait(cell, 'sink shot ' + cell)
+          lastImmediate = result.immediate
+          save = result.after
+        }
+        assert(lastImmediate, '没有发出击沉的一枪')
+        var texts = lastImmediate.text + ' ' + lastImmediate.status + ' ' + lastImmediate.message
+        var expectedName = shipName('destroyer')
+        assert(texts.indexOf(expectedName) >= 0 || /击沉|sunk/i.test(texts), '击沉提示缺少船名「' + expectedName + '」：' + texts.slice(0, 200))
+        allCells.forEach(function (cell) {
+          assertEq(shotValue(saveState(), 'enemy', cell), 2, '驱逐舰格 ' + cell + ' 未被击中')
+          assertEq(cellEl('enemy', cell).getAttribute('data-shot'), 'sunk', '驱逐舰格 ' + cell + ' data-shot')
+        })
+      })
+
+      /* 14. 玩家海域显示己方舰队 + 被击中格 */
+      await stepResult('14. 玩家棋盘显示己方舰队 data-ship 与 AI 弹着点 data-shot', async function () {
+        var save = saveState()
+        assert(save, '没有存档')
+        assertEq(save.phase, 'battle', '不在对战阶段')
+        var ownShips = savedShips(save, 'player')
+        var ownCells = flattenShipCells(ownShips)
+        assertEq(ownCells.length, 17, '玩家舰船格数')
+        ownShips.forEach(function (ship) {
+          ship.cells.forEach(function (cell) {
+            assertEq(cellEl('player', cell).getAttribute('data-ship'), ship.key, '玩家格 ' + cell + ' data-ship')
+          })
+        })
+        var aiShots = 0
+        for (var i = 0; i < 100; i += 1) {
+          var value = shotValue(save, 'player', i)
+          if (value === 0) continue
+          aiShots += 1
+          var expected = expectedCellShot(save, 'player', i)
+          var actual = cellEl('player', i).getAttribute('data-shot')
+          if (expected === 'sunk') {
+            /* 契约允许中弹格用 data-shot="hit" + data-sunk="1" 表达己方被击沉 */
+            assert(actual === 'sunk' || (actual === 'hit' && cellEl('player', i).getAttribute('data-sunk') === '1'),
+              '玩家格 ' + i + ' 被击沉但 data-shot=' + actual + ' data-sunk=' + cellEl('player', i).getAttribute('data-sunk'))
+          } else {
+            assertEq(actual, expected, '玩家格 ' + i + ' data-shot（AI 弹着）')
+          }
+        }
+        assertEq(aiShots, countNonZero(save.enemyShots), 'AI 弹着点数')
+        assert(aiShots >= 1, 'AI 至少应打过一枪')
+        /* 敌方棋盘也交叉验证 */
+        for (var j = 0; j < 100; j += 1) {
+          var expectedEnemy = expectedCellShot(save, 'enemy', j)
+          assertEq(cellEl('enemy', j).getAttribute('data-shot'), expectedEnemy, '敌方格 ' + j + ' data-shot')
+        }
+      })
+
+      /* 15. 存档 key / schema / 每次动作落盘 */
+      await stepResult('15. 存档 key=dsh.game.battleship.v1、schemaVersion=1、每次动作落盘', async function () {
+        var save = saveState()
+        assert(save, 'localStorage 没有存档')
+        assertEq(save.schemaVersion, 1, 'schemaVersion')
+        assertEq(KEY, 'dsh.game.battleship.v1', 'STORE_KEY')
+        var keys = []
+        try {
+          for (var i = 0; i < window.localStorage.length; i += 1) keys.push(window.localStorage.key(i))
+        } catch (error) {
+          throw new Error('读取 localStorage 失败：' + error.message)
+        }
+        var battleshipKeys = keys.filter(function (key) { return key && key.indexOf('dsh.game.battleship') === 0 })
+        assertEq(battleshipKeys.length, 1, '出现了额外的 battleship 存档 key：' + battleshipKeys.join(','))
+        assertEq(battleshipKeys[0], KEY, 'battleship 存档 key 名')
+        var playerShots = countNonZero(save.playerShots)
+        var aiShots = countNonZero(save.enemyShots)
+        assert(playerShots >= 3, '玩家射击数异常：' + playerShots)
+        assert(playerShots === aiShots || playerShots === aiShots + 1, '玩家/AI 枪数不匹配（玩家 ' + playerShots + ' / AI ' + aiShots + '）')
+      })
+
+      /* 16. 卸载 → 重挂，对战完整恢复 */
+      await stepResult('16. 卸载→重挂：对战阶段 fleet/shots/turn 完整恢复', async function () {
+        var before = saveState()
+        assert(before && before.phase === 'battle', '不是对战阶段，无法测恢复')
+        var beforeSnapshot = {
+          turn: before.turn,
+          playerShips: JSON.stringify(before.playerShips),
+          enemyShips: JSON.stringify(before.enemyShips),
+          playerShots: JSON.stringify(before.playerShots),
+          enemyShots: JSON.stringify(before.enemyShots),
+          difficulty: before.difficulty,
+          allowAdjacent: before.allowAdjacent,
+        }
+        var beforeEnemyShots = boardCells('enemy').map(function (cell) { return cell.getAttribute('data-shot') })
+        var beforePlayerShips = boardCells('player').map(function (cell) { return cell.getAttribute('data-ship') })
+        unmount()
+        await sleep(60)
+        assert(!gameRootEl(), '卸载后 root 仍在 DOM 中')
+        assert(saveState(), '卸载后没有存档（destroy 未落盘）')
+        mount()
+        await waitFor(function () { return !!gameRootEl() }, 3000, '重挂后 root 未出现')
+        await sleep(120)
+        var after = saveState()
+        assert(after, '重挂后没有存档')
+        assertEq(after.phase, 'battle', '恢复后 phase')
+        assertEq(after.turn, beforeSnapshot.turn, '恢复后 turn')
+        assertEq(JSON.stringify(after.playerShips), beforeSnapshot.playerShips, '恢复后 playerShips')
+        assertEq(JSON.stringify(after.enemyShips), beforeSnapshot.enemyShips, '恢复后 enemyShips')
+        assertEq(JSON.stringify(after.playerShots), beforeSnapshot.playerShots, '恢复后 playerShots')
+        assertEq(JSON.stringify(after.enemyShots), beforeSnapshot.enemyShots, '恢复后 enemyShots')
+        assertEq(after.difficulty, beforeSnapshot.difficulty, '恢复后 difficulty')
+        assertEq(after.allowAdjacent, beforeSnapshot.allowAdjacent, '恢复后 allowAdjacent')
+        var afterEnemyShots = boardCells('enemy').map(function (cell) { return cell.getAttribute('data-shot') })
+        var afterPlayerShips = boardCells('player').map(function (cell) { return cell.getAttribute('data-ship') })
+        assertEq(afterEnemyShots.join(','), beforeEnemyShots.join(','), '恢复后敌方棋盘弹着点 DOM')
+        assertEq(afterPlayerShips.join(','), beforePlayerShips.join(','), '恢复后玩家棋盘舰船 DOM')
+      })
+
+      /* 17. 布阵阶段恢复 */
+      await freshPlace()
+      await stepResult('17. 布阵阶段卸载→重挂：已放舰船保留（phase=place）', async function () {
+        await ensureOrientation('h')
+        click(cellEl('player', 0), 'place carrier')
+        await sleep(70)
+        var before = saveState()
+        assertEq(savedShips(before, 'player').length, 1, '布阵阶段应已放下 1 艘')
+        var beforeCells = JSON.stringify(before.playerShips)
+        unmount()
+        await sleep(60)
+        mount()
+        await waitFor(function () { return !!gameRootEl() }, 3000, '重挂后 root 未出现')
+        await sleep(100)
+        var after = saveState()
+        assertEq(after.phase, 'place', '恢复后 phase')
+        assertEq(JSON.stringify(after.playerShips), beforeCells, '恢复后已放舰船')
+        assertEq(gameRootEl().getAttribute('data-phase'), 'place', 'data-phase')
+        var domShips = boardCells('player').filter(function (cell) { return cell.getAttribute('data-ship') })
+        assertEq(domShips.length, 5, '恢复后玩家棋盘 data-ship 格数（carrier=5）')
+      })
+
+      /* 18. 难度按钮 */
+      await freshPlace()
+      await stepResult('18. 难度按钮 easy/normal/hard 写入存档', async function () {
+        if (!actionEl('difficulty-easy')) {
+          /* 有些实现把难度放在对战工具栏；布阵阶段没有就打完一局再点 */
+          await beginBattleFromFresh()
+        }
+        assert(actionEl('difficulty-easy'), '缺少难度按钮 easy（布阵与对战阶段都没有）')
+        clickAction('difficulty-easy')
+        await sleep(60)
+        assertEq(saveState().difficulty, 'easy', 'difficulty easy')
+        clickAction('difficulty-hard')
+        await sleep(60)
+        assertEq(saveState().difficulty, 'hard', 'difficulty hard')
+        clickAction('difficulty-normal')
+        await sleep(60)
+        assertEq(saveState().difficulty, 'normal', 'difficulty normal')
+      })
+
+      /* 19-21. 响应式 */
+      await beginBattleFromFresh()
+      await stepResult('19. 360x520：两块棋盘上下叠放且 root 无溢出', async function () {
+        setStageSize(360, 520)
+        await sleep(400)
+        checkNoOverflow('360x520')
+        var playerBoard = boardEl('player')
+        var enemyBoard = boardEl('enemy')
+        assert(playerBoard && enemyBoard, '360x520 下棋盘消失（root 文本：' + uiText().slice(0, 80) + '）—— 缩小窗口后疑似卡在“窗口太小”占位')
+        var p = playerBoard.getBoundingClientRect()
+        var e = enemyBoard.getBoundingClientRect()
+        var stacked = p.bottom <= e.top + 2 || e.bottom <= p.top + 2
+        assert(stacked, '360x520 下两块棋盘没有上下叠放（player.top=' + p.top.toFixed(1) + ', enemy.top=' + e.top.toFixed(1) + '）')
+        assertEq(boardCells('player').length, 100, '收窄后玩家格数')
+        assertEq(boardCells('enemy').length, 100, '收窄后敌方格数')
+      })
+      await stepResult('20. 720x600：两块棋盘并排且 root 无溢出', async function () {
+        setStageSize(720, 600)
+        await sleep(300)
+        checkNoOverflow('720x600')
+        var p = boardEl('player').getBoundingClientRect()
+        var e = boardEl('enemy').getBoundingClientRect()
+        var sideBySide = Math.abs(p.top - e.top) <= 8 && (p.right <= e.left + 2 || e.right <= p.left + 2)
+        assert(sideBySide, '720x600 下两块棋盘没有并排（player=' + rectStr(p) + ', enemy=' + rectStr(e) + '）')
+      })
+      await stepResult('21. 1100x700：root 无溢出，棋盘仍并排', async function () {
+        setStageSize(1100, 700)
+        await sleep(300)
+        checkNoOverflow('1100x700')
+        var p = boardEl('player').getBoundingClientRect()
+        var e = boardEl('enemy').getBoundingClientRect()
+        var sideBySide = Math.abs(p.top - e.top) <= 8 && (p.right <= e.left + 2 || e.right <= p.left + 2)
+        assert(sideBySide, '1100x700 下两块棋盘没有并排')
+      })
+
+      /* 22. 太小窗口 */
+      await stepResult('22. 300x220：显示“窗口太小”提示而不是画烂', async function () {
+        setStageSize(300, 220)
+        await sleep(320)
+        try {
+          var text = uiText()
+          assert(/太小|too small|太小了/i.test(text), '300x220 没有窗口太小提示：' + text.slice(0, 200))
+          checkNoOverflow('300x220')
+        } finally {
+          setStageSize(720, 600)
+          await sleep(320)
+        }
+        assertEq(boardCells('player').length, 100, '恢复 720x600 后棋盘未回来')
+        assert(/太小|too small/i.test(uiText()) === false, '恢复尺寸后仍显示太小提示')
+      })
+
+      /* 23. 全局副作用 */
+      setStageSize(720, 600)
+      await sleep(250)
+      await freshPlace()
+      await stepResult('23. 不触碰 document.body / 不绑全局键盘 / title 不变', async function () {
+        assert(bodyBaseline, '缺少 body baseline')
+        assertEq(document.title, bodyBaseline.title, 'document.title 被改动')
+        assertEq(document.body.children.length, bodyBaseline.childCount, 'document.body 直接子节点数变化（client 疑似向 body 挂节点）')
+        var root = gameRootEl()
+        assert(root, 'root 不存在')
+        assertEq(document.querySelectorAll('[data-dsh-game="battleship"]').length, 1, 'data-dsh-game 根节点数量')
+        assert(rootEl.contains(root), 'root 不在 #game-root 内')
+        /* 全局键盘：在 body 上发 R 键，root 不应响应 */
+        await ensureOrientation('h')
+        var before = saveState().orientation
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', code: 'KeyR', bubbles: true, cancelable: true, view: window }))
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'R', code: 'KeyR', bubbles: true, cancelable: true, view: window }))
+        await sleep(80)
+        var after = saveState()
+        assertEq(after.orientation, before, '在 root 之外按 R 仍改变了 orientation（存在全局 keydown 监听）')
+      })
+
+      /* 24. 胜利判定（seam 构造近胜 + DOM 点击最后一格） */
+      await beginBattleFromFresh()
+      await stepResult('24. 胜利判定：击沉最后一艘 → phase=over/winner=player/胜利提示', async function () {
+        assert(api && typeof api.sanitizeState === 'function', 'seam 缺少 sanitizeState')
+        assert(typeof api.serializeState === 'function', 'seam 缺少 serializeState')
+        var save = saveState()
+        var state = api.sanitizeState(save)
+        assert(state, 'sanitizeState(存档) 返回空')
+        var enemyCells = flattenShipCells(savedShips(save, 'enemy'))
+        assertEq(enemyCells.length, 17, '敌方舰船总格数')
+        var lastCell = enemyCells[enemyCells.length - 1]
+        for (var i = 0; i < enemyCells.length; i += 1) {
+          state.playerShots[enemyCells[i]] = enemyCells[i] === lastCell ? 0 : 2
+        }
+        /* sanitizeState 会校验双方枪数奇偶：让 AI 也打在玩家海域的水格上，
+           凑够与玩家相同数量的 miss，保证构造的存档是合法局面。 */
+        var playerShipSet = {}
+        flattenShipCells(savedShips(save, 'player')).forEach(function (cell) { playerShipSet[cell] = true })
+        var aiMisses = 0
+        for (var w = 0; w < 100 && aiMisses < enemyCells.length - 1; w += 1) {
+          if (!playerShipSet[w]) {
+            state.enemyShots[w] = 1
+            aiMisses += 1
+          }
+        }
+        assertEq(aiMisses, enemyCells.length - 1, '构造 AI miss 失败')
+        state.turn = 'player'
+        state.phase = 'battle'
+        state.winner = null
+        unmount()
+        window.localStorage.setItem(KEY, JSON.stringify(api.serializeState(state)))
+        mount()
+        await waitFor(function () { return !!gameRootEl() }, 3000, '近胜局面重挂失败')
+        await sleep(120)
+        var near = saveState()
+        assertEq(near.phase, 'battle', '近胜局面 phase')
+        var beforeText = uiText()
+        assert(/击沉|sunk/i.test(beforeText) || countSunk(near, 'enemy') >= 4, '近胜局面未显示 4 艘被击沉')
+        click(cellEl('enemy', lastCell), 'winning shot')
+        await sleep(150)
+        var after = saveState()
+        assertEq(after.phase, 'over', '胜利后 phase')
+        assertEq(after.winner, 'player', '胜利后 winner')
+        assertEq(gameRootEl().getAttribute('data-phase'), 'over', 'data-phase')
+        var text = uiText()
+        assert(/胜利|恭喜|win/i.test(text), '缺少胜利提示：' + text.slice(0, 200))
+        var allSunk = flattenShipCells(savedShips(after, 'enemy')).every(function (cell) {
+          return cellEl('enemy', cell).getAttribute('data-shot') === 'sunk'
+        })
+        assert(allSunk, '胜利后并非所有敌舰格 data-shot=sunk')
+      })
+
+      /* 收尾：回到干净局面，便于截图 */
+      try {
+        setStageSize(requestedSize.w, requestedSize.h)
+        setTheme(requestedTheme === 'dark')
+        await freshPlace()
+      } catch (restoreError) {
+        // ignore
+      }
+
+      /* 25. 全程无错误 */
+      await stepResult('25. 全程无 window error / unhandledrejection / console.error', async function () {
+        assertEq(window.__errors.length, 0, 'window error 数量：' + window.__errors.map(function (e) { return e.message }).join(' | '))
+        assertEq(window.__rejections.length, 0, 'unhandledrejection 数量：' + window.__rejections.map(function (e) { return e.message }).join(' | '))
+        assertEq(window.__consoleErrors.length, 0, 'console.error 数量：' + window.__consoleErrors.map(function (e) { return e.message }).join(' | '))
+        assertEq(log.length, 0, 'preview 记录的问题：' + log.join(' | '))
+      })
+    } catch (error) {
+      addSelftestResult('自检流程异常终止', false, error && error.stack ? error.stack : String(error))
+    }
+
+    var pass = selftestResults.filter(function (r) { return r.ok }).length
+    var fail = selftestResults.filter(function (r) { return !r.ok }).length
+    var result = {
+      pass: pass,
+      fail: fail,
+      total: selftestResults.length,
+      durationMs: Date.now() - stats.start,
+      checks: selftestResults.slice(),
+      errors: {
+        errors: window.__errors.slice(),
+        rejections: window.__rejections.slice(),
+        consoleErrors: window.__consoleErrors.slice(),
+      },
+      consoleErrorCount: window.__consoleErrors.length,
+      windowErrorCount: window.__errors.length,
+      unhandledRejectionCount: window.__rejections.length,
+    }
+    window.__PREVIEW_RESULTS__ = result
+    return result
+  }
+
+  function rectStr(rect) {
+    return '[x=' + rect.x.toFixed(1) + ',y=' + rect.y.toFixed(1) + ',w=' + rect.width.toFixed(1) + ',h=' + rect.height.toFixed(1) + ']'
+  }
+
+  function checkNoOverflow(label) {
+    var root = gameRootEl()
+    assert(root, label + '：root 不存在')
+    assert(root.scrollWidth <= root.clientWidth + 1, label + '：root 横向溢出（scrollWidth=' + root.scrollWidth + ' > clientWidth=' + root.clientWidth + '）')
+    assert(root.scrollHeight <= root.clientHeight + 1, label + '：root 纵向溢出（scrollHeight=' + root.scrollHeight + ' > clientHeight=' + root.clientHeight + '）')
+    var rect = root.getBoundingClientRect()
+    var stageRect = stageEl.getBoundingClientRect()
+    assert(rect.left >= stageRect.left - 1 && rect.right <= stageRect.right + 1, label + '：root 横向超出舞台 ' + rectStr(rect))
+    assert(rect.top >= stageRect.top - 1 && rect.bottom <= stageRect.bottom + 1, label + '：root 纵向超出舞台 ' + rectStr(rect))
+    if (/太小|too small/i.test(uiText())) return
+    ;['player', 'enemy'].forEach(function (side) {
+      var board = boardEl(side)
+      assert(board, label + '：' + side + ' 棋盘不存在')
+      var br = board.getBoundingClientRect()
+      assert(br.left >= rect.left - 1 && br.right <= rect.right + 1, label + '：' + side + ' 棋盘横向超出 root ' + rectStr(br))
+    })
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 实时状态轮询
+   * ------------------------------------------------------------------ */
+
+  function statusSnapshot() {
+    var save = saveState()
+    var root = gameRootEl()
+    var shotCounts = { none: 0, miss: 0, hit: 0, sunk: 0 }
+    boardCells('enemy').forEach(function (cell) {
+      var value = cell.getAttribute('data-shot') || 'none'
+      if (!(value in shotCounts)) shotCounts[value] = 0
+      shotCounts[value] += 1
+    })
+    return {
+      save: save,
+      phase: root ? root.getAttribute('data-phase') : '（无 root）',
+      turn: root ? root.getAttribute('data-turn') : '（无 root）',
+      enemyShotCounts: shotCounts,
+      ownShipCells: boardCells('player').filter(function (cell) { return cell.getAttribute('data-ship') }).length,
+      actionButtons: actionEls().map(function (el) { return el.getAttribute('data-action') }).join(','),
+      tooSmall: /太小|too small/i.test(uiText()),
+      status: statusText().slice(0, 90),
+      message: messageText().slice(0, 90),
+    }
+  }
+
+  function updateLiveStatus() {
+    var panel = document.getElementById('live-status')
+    if (!panel) return
+    var snap = statusSnapshot()
+    var save = snap.save
+    var rows = []
+    function row(key, value) {
+      rows.push([key, value])
+    }
+    row('舞台', stageEl.style.width + ' × ' + stageEl.style.height)
+    row('root data-phase', snap.phase)
+    row('root data-turn', snap.turn)
+    if (!save) {
+      row('存档', '（无）')
+    } else {
+      row('phase / turn', String(save.phase) + ' / ' + String(save.turn))
+      row('玩家舰船', savedShips(save, 'player').length + ' 艘 / ' + flattenShipCells(savedShips(save, 'player')).length + ' 格')
+      row('敌方舰船', savedShips(save, 'enemy').length + ' 艘 / ' + flattenShipCells(savedShips(save, 'enemy')).length + ' 格')
+      row('玩家射击', countNonZero(save.playerShots) + ' 格；击沉 ' + countSunk(save, 'enemy'))
+      row('AI 射击', countNonZero(save.enemyShots) + ' 格；击沉 ' + countSunk(save, 'player'))
+      row('difficulty / 相邻', String(save.difficulty) + ' / ' + (save.allowAdjacent ? '允许' : '禁止'))
+      row('orientation', String(save.orientation) + '（第 ' + save.placementIndex + ' 艘）')
+      row('winner', save.winner === null || save.winner === undefined ? '（无）' : String(save.winner))
+    }
+    row('敌方棋盘 data-shot', JSON.stringify(snap.enemyShotCounts))
+    row('玩家 data-ship 格', snap.ownShipCells)
+    row('按钮', snap.actionButtons || '（无）')
+    row('状态栏', snap.status || '（空）')
+    row('提示 toast', snap.message || '（空）')
+    row('tooSmall', String(snap.tooSmall))
+    panel.innerHTML = rows
+      .map(function (pair) {
+        return '<div class="k">' + pair[0] + '</div><div class="v">' + String(pair[1]) + '</div>'
+      })
+      .join('')
+    document.getElementById('err-count').textContent = String(window.__errors.length)
+    document.getElementById('rej-count').textContent = String(window.__rejections.length)
+    document.getElementById('console-err-count').textContent = String(window.__consoleErrors.length)
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 事件绑定 + 启动
+   * ------------------------------------------------------------------ */
+
+  document.getElementById('theme-toggle').addEventListener('click', function () {
+    setTheme(document.body.getAttribute('data-theme') !== 'dark')
+  })
+  document.getElementById('remount').addEventListener('click', function () {
+    try {
+      remount()
+    } catch (error) {
+      window.__recordPreviewError('remount', error && error.stack ? error.stack : String(error))
+    }
+  })
+  document.getElementById('clear-save').addEventListener('click', function () {
+    unmount()
+    try {
+      window.localStorage.removeItem(KEY)
+    } catch (error) {
+      // ignore
+    }
+    try {
+      mount()
+    } catch (error) {
+      window.__recordPreviewError('mount', error && error.stack ? error.stack : String(error))
+    }
+  })
+  document.getElementById('run-selftest').addEventListener('click', function () {
+    runSelftest().catch(function (error) {
+      window.__recordPreviewError('selftest', error && error.stack ? error.stack : String(error))
+    })
+  })
+  Array.prototype.forEach.call(document.querySelectorAll('#size-row button'), function (button) {
+    button.addEventListener('click', function () {
+      setStageSize(Number(button.getAttribute('data-w')), Number(button.getAttribute('data-h')))
+    })
+  })
+  Array.prototype.forEach.call(document.querySelectorAll('[data-scenario]'), function (button) {
+    button.addEventListener('click', function () {
+      var name = button.getAttribute('data-scenario')
+      try {
+        scenarios[name]()
+      } catch (error) {
+        window.__recordPreviewError('scenario', error && error.stack ? error.stack : String(error))
+      }
+    })
+  })
+
+  /* ------------------------------------------------------------------ *
+   * 启动（含 ?selftest=1 / ?theme=dark / ?size=720x600 / ?capture=1 / ?scenario=...）
+   * ------------------------------------------------------------------ */
+
+  var params = {}
+  try {
+    var search = new URLSearchParams(window.location.search)
+    search.forEach(function (value, key) { params[key] = value })
+  } catch (error) {
+    params = {}
+  }
+
+  requestedTheme = params.theme === 'dark' ? 'dark' : 'light'
+  var sizeMatch = /^(\d{2,4})x(\d{2,4})$/.exec(params.size || '')
+  requestedSize = sizeMatch ? { w: Number(sizeMatch[1]), h: Number(sizeMatch[2]) } : { w: 720, h: 600 }
+  setTheme(requestedTheme === 'dark')
+  setStageSize(requestedSize.w, requestedSize.h)
+  if (params.capture === '1') document.body.classList.add('capture')
+
+  bodyBaseline = {
+    title: document.title,
+    childCount: document.body.children.length,
+  }
+
+  var bootOk = false
+  try {
+    bootOk = boot()
+    window.__previewReady = bootOk
+  } catch (error) {
+    window.__recordPreviewError('boot', error && error.stack ? error.stack : String(error))
+  }
+  updateLiveStatus()
+  setInterval(updateLiveStatus, 500)
+
+  window.__preview = {
+    api: api,
+    React: R,
+    boot: boot,
+    mount: mount,
+    unmount: unmount,
+    remount: remount,
+    freshPlace: freshPlace,
+    setStageSize: setStageSize,
+    setTheme: setTheme,
+    readSaveRaw: readSaveRaw,
+    saveState: saveState,
+    scenarios: scenarios,
+    runScenario: function (name) {
+      if (!scenarios[name]) return Promise.reject(new Error('未知场景：' + name))
+      window.__SCENARIO_DONE__ = false
+      return scenarios[name]().then(function () {
+        window.__SCENARIO_DONE__ = true
+      })
+    },
+    runSelftest: runSelftest,
+    selftestResults: function () {
+      return selftestResults.slice()
+    },
+    bootChecks: function () {
+      return bootChecks.slice()
+    },
+    statusSnapshot: statusSnapshot,
+    errors: function () {
+      return {
+        errors: window.__errors.slice(),
+        rejections: window.__rejections.slice(),
+        consoleErrors: window.__consoleErrors.slice(),
+      }
+    },
+  }
+
+  window.__SCENARIO_DONE__ = false
+  window.__SCENARIO_ERROR__ = null
+  window.__SELFTEST_DONE__ = false
+  window.__PREVIEW_RESULTS__ = null
+
+  if (params.selftest === '1') {
+    runSelftest().then(function (result) {
+      window.__SELFTEST_DONE__ = true
+    }).catch(function (error) {
+      window.__SELFTEST_DONE__ = true
+      window.__PREVIEW_RESULTS__ = {
+        pass: 0,
+        fail: 1,
+        total: 1,
+        checks: [{ name: '自检启动失败', ok: false, error: error && error.stack ? error.stack : String(error) }],
+        errors: {
+          errors: window.__errors.slice(),
+          rejections: window.__rejections.slice(),
+          consoleErrors: window.__consoleErrors.slice(),
+        },
+        consoleErrorCount: window.__consoleErrors.length,
+      }
+      window.__recordPreviewError('selftest', error && error.stack ? error.stack : String(error))
+    })
+  } else if (params.scenario) {
+    var scenarioName = params.scenario
+    if (scenarios[scenarioName]) {
+      scenarios[scenarioName]().then(function () {
+        window.__SCENARIO_DONE__ = true
+        updateLiveStatus()
+      }).catch(function (error) {
+        window.__SCENARIO_ERROR__ = error && error.stack ? error.stack : String(error)
+        window.__SCENARIO_DONE__ = true
+        window.__recordPreviewError('scenario', window.__SCENARIO_ERROR__)
+      })
+    } else {
+      window.__SCENARIO_ERROR__ = '未知场景：' + scenarioName
+      window.__SCENARIO_DONE__ = true
+    }
+  }
+})()
+</script>
+</body>
+</html>

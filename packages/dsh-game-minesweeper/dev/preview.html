@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>扫雷 · DSH 游戏包 dev 预览（非宿主验收）</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 20px;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: #f2f3f5;
+    color: #1f2328;
+  }
+  body[data-theme="dark"] { background: #17191c; color: #e8e8e8; }
+  .layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; max-width: 1160px; margin: 0 auto; }
+  .stage-wrap { display: flex; flex-direction: column; gap: 8px; }
+  .stage {
+    width: min(680px, calc(100vw - 40px));
+    height: min(640px, calc(100vw - 40px));
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #d9d9d9;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.16);
+  }
+  .note { margin: 0; font-size: 12px; opacity: 0.65; }
+  .side { flex: 1 1 320px; min-width: 280px; display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  .stats { display: flex; gap: 10px; font-size: 14px; flex-wrap: wrap; }
+  .stat { padding: 6px 12px; border-radius: 8px; background: rgba(127, 127, 127, 0.14); }
+  .stat b { font-variant-numeric: tabular-nums; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font: inherit;
+    font-size: 13px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(127, 127, 127, 0.35);
+    background: rgba(127, 127, 127, 0.12);
+    color: inherit;
+    cursor: pointer;
+  }
+  button:hover { background: rgba(127, 127, 127, 0.22); }
+  button[aria-pressed="true"] { border-color: rgba(90, 140, 230, 0.9); background: rgba(90, 140, 230, 0.22); }
+  pre {
+    margin: 0;
+    min-height: 48px;
+    max-height: 200px;
+    overflow: auto;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(127, 127, 127, 0.1);
+    font-size: 12px;
+    white-space: pre-wrap;
+  }
+  .hint { font-size: 12.5px; line-height: 1.6; opacity: 0.8; }
+</style>
+</head>
+<body data-theme="light">
+<div class="layout">
+  <div class="stage-wrap">
+    <div id="stage" class="stage"></div>
+    <p class="note">开发预览：只验证 canvas 渲染与运行时 API，<strong>不是</strong>宿主内验收。</p>
+  </div>
+  <aside class="side">
+    <h1>扫雷 · dev preview</h1>
+    <div class="stats">
+      <div class="stat">剩余 <b id="remaining">10</b></div>
+      <div class="stat">用时 <b id="elapsed">0s</b></div>
+      <div class="stat">最佳 <b id="best">—</b></div>
+      <div class="stat">状态 <b id="status">待开始</b></div>
+    </div>
+    <div class="row">
+      <button id="new">新游戏</button>
+      <button id="beginner" aria-pressed="true">初级</button>
+      <button id="intermediate">中级</button>
+      <button id="expert">高级</button>
+      <button id="theme">切换页面主题</button>
+    </div>
+    <div class="hint">
+      左键翻开 · 右键插旗 · 双击数字快开（或中键）。<br>
+      同一页面下暗色/亮色主题都应可读；棋盘自带不透明底色。
+    </div>
+    <pre id="log">ready</pre>
+  </aside>
+</div>
+
+<script>
+  // Test seam: lets this page import the real client.js without the DSH module table.
+  window.__DSH_GAME_MINESWEEPER_TEST__ = true
+  window.__ModuleLoader__ = {
+    load(definition) { window.__loadedGameDefinition = definition },
+  }
+  window.addEventListener('error', function (event) {
+    var log = document.getElementById('log')
+    log.textContent += '\nwindow.error: ' + (event.message || event.error)
+  })
+</script>
+<script src="../client.js"></script>
+<script>
+  (function () {
+    'use strict'
+    var log = document.getElementById('log')
+    var remainingEl = document.getElementById('remaining')
+    var elapsedEl = document.getElementById('elapsed')
+    var bestEl = document.getElementById('best')
+    var statusEl = document.getElementById('status')
+    var levelIds = ['beginner', 'intermediate', 'expert']
+    var stage = document.getElementById('stage')
+    var api = window.__DSH_GAME_MINESWEEPER__
+    var game = null
+
+    function appendLog(message) {
+      log.textContent += '\n' + message
+      log.scrollTop = log.scrollHeight
+    }
+
+    function bestText(best) {
+      if (best === null || best === undefined) return '—'
+      return Math.floor(best / 1000) + 's'
+    }
+
+    function statusText(state) {
+      if (state.status === 'ready') return '待开始'
+      if (state.status === 'playing') return '进行中'
+      if (state.status === 'won') return '扫雷成功'
+      return '踩雷了'
+    }
+
+    function renderState(state) {
+      remainingEl.textContent = String(state.remaining)
+      elapsedEl.textContent = state.elapsed + 's'
+      bestEl.textContent = bestText(state.best)
+      statusEl.textContent = statusText(state)
+      for (var i = 0; i < levelIds.length; i += 1) {
+        var button = document.getElementById(levelIds[i])
+        button.setAttribute('aria-pressed', String(state.difficulty === levelIds[i]))
+      }
+    }
+
+    function boot() {
+      if (game) {
+        game.destroy()
+        game = null
+      }
+      try {
+        game = api.createGame(stage, {
+          onState: renderState,
+          onError: function (message) { appendLog('game onError: ' + message) },
+        })
+        appendLog('booted; seam=' + (api ? 'yes' : 'no'))
+      } catch (error) {
+        appendLog('boot failed: ' + (error && error.message ? error.message : error))
+      }
+    }
+
+    document.getElementById('new').addEventListener('click', function () {
+      if (game) game.newGame()
+    })
+    for (var i = 0; i < levelIds.length; i += 1) {
+      (function (id) {
+        document.getElementById(id).addEventListener('click', function () {
+          if (game) game.setDifficulty(id)
+        })
+      })(levelIds[i])
+    }
+    document.getElementById('theme').addEventListener('click', function () {
+      var dark = document.body.dataset.theme === 'dark'
+      document.body.dataset.theme = dark ? 'light' : 'dark'
+      appendLog('theme -> ' + document.body.dataset.theme)
+    })
+
+    boot()
+  })()
+</script>
+</body>
+</html>

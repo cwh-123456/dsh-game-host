@@ -1,0 +1,3 @@
+- insert:
+    - id: game-minesweeper
+      name: '@local/dsh-game-minesweeper'

@@ -1,0 +1,36 @@
+{
+  "name": "dsh-game-host",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH 游戏平台页：独立的整页游戏空间，游戏以插件包形式接入，模型需要你处理时在页内提醒。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "game"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

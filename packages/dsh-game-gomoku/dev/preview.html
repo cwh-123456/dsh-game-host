@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>五子棋 Gomoku — DSH 游戏包 dev 预览（非宿主验收）</title>
+<style>
+  :root {
+    color-scheme: light;
+    --dsw-alias-bg-base: #ffffff;
+    --dsw-alias-bg-layer-1: #f7f8fa;
+    --dsw-alias-bg-layer-2: #f1f3f5;
+    --dsw-alias-label-primary: #1f2328;
+    --dsw-alias-label-secondary: #57606a;
+    --dsw-alias-label-tertiary: #8b949e;
+    --dsw-alias-border-l1: #d0d7de;
+    --dsw-alias-brand-primary: #2f81f7;
+    --dsw-alias-interactive-bg-hover: #eceff2;
+    --dsw-alias-interactive-bg-active: #dfe4e9;
+    --dsw-alias-bg-mask-1: rgba(9, 12, 16, 0.38);
+    --dsw-elevation-panel: 0 8px 24px rgba(0, 0, 0, 0.18);
+    --page-bg: #e9ecf0;
+    --page-fg: #1f2328;
+    --page-card: #ffffff;
+    --page-line: #d5dbe2;
+  }
+  body[data-theme="dark"] {
+    color-scheme: dark;
+    --dsw-alias-bg-base: #17191c;
+    --dsw-alias-bg-layer-1: #1c1f24;
+    --dsw-alias-bg-layer-2: #21262d;
+    --dsw-alias-label-primary: #e6edf3;
+    --dsw-alias-label-secondary: #a7b0ba;
+    --dsw-alias-label-tertiary: #7d8590;
+    --dsw-alias-border-l1: #30363d;
+    --dsw-alias-brand-primary: #4b8ef7;
+    --dsw-alias-interactive-bg-hover: #2a313a;
+    --dsw-alias-interactive-bg-active: #333c47;
+    --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.55);
+    --dsw-elevation-panel: 0 12px 40px rgba(0, 0, 0, 0.5);
+    --page-bg: #101216;
+    --page-fg: #e6edf3;
+    --page-card: #1b1e23;
+    --page-line: #2b3139;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    padding: 16px;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font: 14px/1.5 "Segoe UI", system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+  }
+  .layout { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; max-width: 1240px; margin: 0 auto; }
+  .left { display: flex; flex-direction: column; gap: 8px; }
+  .stage {
+    position: relative;
+    width: 720px;
+    height: 600px;
+    background: var(--dsw-alias-bg-base);
+    border: 1px solid var(--page-line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.18);
+  }
+  #game-root { width: 100%; height: 100%; }
+  .side { flex: 1 1 320px; min-width: 300px; max-width: 430px; display: flex; flex-direction: column; gap: 10px; }
+  h1 { margin: 0; font-size: 17px; font-weight: 600; }
+  h1 small { font-size: 12px; font-weight: 400; opacity: 0.65; margin-left: 6px; }
+  .card { border: 1px solid var(--page-line); border-radius: 10px; background: var(--page-card); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .card h2 { margin: 0; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.65; font-weight: 600; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 7px; border: 1px solid var(--page-line); background: var(--dsw-alias-interactive-bg-hover); color: var(--page-fg); cursor: pointer; }
+  button:hover { background: var(--dsw-alias-interactive-bg-active); }
+  .line { font-size: 12px; opacity: 0.85; word-break: break-word; }
+  .ok { color: #1a7f37; }
+  body[data-theme="dark"] .ok { color: #4ac26b; }
+  .bad { color: #cf222e; }
+  body[data-theme="dark"] .bad { color: #ff7b72; }
+  pre {
+    margin: 0;
+    max-height: 220px;
+    overflow: auto;
+    font-size: 11.5px;
+    line-height: 1.45;
+    background: var(--dsw-alias-bg-layer-2);
+    border-radius: 6px;
+    padding: 8px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+</style>
+</head>
+<body data-theme="light">
+  <div class="layout">
+    <div class="left">
+      <div class="line" id="stage-label"><b>dev 预览舞台</b> · 真实 Chromium 渲染；<b>不是</b>宿主内验收</div>
+      <div class="stage" id="stage"><div id="game-root"></div></div>
+      <div class="line" id="size-label">720×600</div>
+    </div>
+    <div class="side">
+      <h1>五子棋 <small>dev-only preview</small></h1>
+      <div class="card">
+        <h2>舞台 / 主题</h2>
+        <div class="row" id="size-row">
+          <button type="button" data-size="360x520">360×520</button>
+          <button type="button" data-size="720x600">720×600</button>
+          <button type="button" data-size="1100x700">1100×700</button>
+          <button type="button" data-size="300x220">300×220（太小）</button>
+        </div>
+        <div class="row">
+          <button type="button" id="theme-toggle">切换主题</button>
+          <button type="button" id="rules-top">打开规则</button>
+          <button type="button" id="reset-top">清存档并刷新</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>启动检查</h2>
+        <pre id="boot-checks">waiting…</pre>
+      </div>
+      <div class="card">
+        <h2>状态</h2>
+        <pre id="snapshot">—</pre>
+      </div>
+      <div class="card">
+        <h2>自动化 API（window.__preview）</h2>
+        <pre>__preview.status() · save() · clickCell(r,c) · clickButton(text)
+__preview.setTheme('dark') · setSize(w,h) · openRules() · closeRules()
+__preview.snapshot() · reset() · wait(ms)</pre>
+      </div>
+    </div>
+  </div>
+
+<script>
+  /* ------------------------------------------------------------------ *
+   * 1) 模块表 stub + 错误收集（必须在 client.js 之前）
+   * ------------------------------------------------------------------ */
+  window.__DSH_GAME_GOMOKU_TEST__ = true
+  window.__previewErrors = []
+  window.addEventListener('error', function (event) {
+    window.__previewErrors.push('error: ' + (event.message || event.error))
+  })
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event.reason
+    window.__previewErrors.push('unhandledrejection: ' + (reason && reason.message ? reason.message : String(reason)))
+  })
+  var originalConsoleError = console.error
+  console.error = function () {
+    var parts = []
+    for (var i = 0; i < arguments.length; i += 1) {
+      var arg = arguments[i]
+      parts.push(arg && arg.stack ? arg.stack : String(arg))
+    }
+    window.__previewErrors.push('console.error: ' + parts.join(' '))
+    originalConsoleError.apply(console, arguments)
+  }
+  window.__ModuleLoader__ = {
+    load: function (definition) {
+      window.__definition = definition
+    },
+  }
+</script>
+<script src="./fake-react.js"></script>
+<script src="../client.js"></script>
+<script>
+  /* ------------------------------------------------------------------ *
+   * 2) 启动：用 fake-react 渲染 client.js 注册的组件
+   * ------------------------------------------------------------------ */
+  ;(function boot() {
+    var bootChecks = []
+    function check(name, ok, detail) {
+      bootChecks.push({ name: name, ok: !!ok, detail: detail || '' })
+    }
+
+    try {
+      var S = window.__DSH_GAME_GOMOKU__
+      check('测试 seam 已安装', !!S)
+      check('模块定义 id 正确', !!window.__definition && window.__definition.id === '@local/dsh-game-gomoku')
+      check('测试 seam id 正确', !!S && S.GAME_ID === 'gomoku')
+      if (S && /[?&]reset(=|&|$)/.test(location.search)) localStorage.removeItem(S.STORE_KEY)
+
+      var definition = window.__definition
+      var plugin = definition.factory(function (name) {
+        if (name === 'react') return window.FakeReact
+        throw new Error('unexpected module: ' + name)
+      })
+      check('inject 只有 slots', Array.isArray(plugin.inject) && plugin.inject.length === 1 && plugin.inject[0] === 'slots')
+
+      var registered = null
+      var ctx = {
+        slots: {
+          inject: function (slotName, callback) {
+            check('slot 注入 game.stage', slotName === 'game.stage')
+            callback()
+          },
+          register: function (slot, component) {
+            registered = { slot: slot, component: component }
+            return function () {}
+          },
+        },
+      }
+      plugin.apply(ctx)
+      check('注册了 game.stage / gomoku', !!registered && registered.slot.name === 'game.stage' && registered.slot.id === 'gomoku')
+      check('label 为「五子棋」', !!registered && registered.slot.label() === '五子棋')
+      check('select 只认 gomoku', !!registered &&
+        registered.slot.select({ gameId: 'gomoku' }) !== null &&
+        registered.slot.select({ gameId: '2048' }) === null)
+
+      var gameRoot = document.getElementById('game-root')
+      window.FakeReact.render(
+        window.FakeReact.createElement(registered.component, { matched: {} }),
+        gameRoot,
+      )
+      check('组件已渲染', !!gameRoot.querySelector('[data-dsh-game="gomoku"]'))
+      check('canvas 已挂载', !!gameRoot.querySelector('canvas'))
+      check('假 React 无内部错误', window.FakeReact.__errors.length === 0,
+        window.FakeReact.__errors.map(String).join('; '))
+
+      /* ---------------- 自动化 API ---------------- */
+      var api = {
+        S: S,
+        definition: definition,
+        slot: registered.slot,
+        component: registered.component,
+        bootChecks: bootChecks,
+        errors: window.__previewErrors,
+        root: gameRoot,
+        canvas: function () {
+          return gameRoot.querySelector('canvas')
+        },
+        status: function () {
+          var el = gameRoot.querySelector('[role="status"]')
+          return el ? el.textContent : null
+        },
+        save: function () {
+          try {
+            return JSON.parse(localStorage.getItem(S.STORE_KEY) || 'null')
+          } catch (error) {
+            return null
+          }
+        },
+        buttons: function () {
+          return Array.prototype.map.call(gameRoot.querySelectorAll('button'), function (button) {
+            return button.textContent.trim()
+          })
+        },
+        clickButton: function (label) {
+          var buttons = Array.prototype.slice.call(gameRoot.querySelectorAll('button'))
+          for (var i = 0; i < buttons.length; i += 1) {
+            if (buttons[i].textContent.trim() === label) {
+              buttons[i].click()
+              return true
+            }
+          }
+          throw new Error('button not found: ' + label)
+        },
+        cellPoint: function (row, col) {
+          var canvas = api.canvas()
+          var rect = canvas.getBoundingClientRect()
+          var scale = rect.width / S.LOGICAL_SIZE
+          return {
+            x: rect.left + (S.PAD + col * S.CELL) * scale,
+            y: rect.top + (S.PAD + row * S.CELL) * scale,
+          }
+        },
+        moveMouse: function (row, col) {
+          var canvas = api.canvas()
+          var point = api.cellPoint(row, col)
+          canvas.dispatchEvent(new PointerEvent('pointermove', {
+            clientX: point.x,
+            clientY: point.y,
+            bubbles: true,
+          }))
+        },
+        clickCell: function (row, col) {
+          var canvas = api.canvas()
+          var point = api.cellPoint(row, col)
+          canvas.dispatchEvent(new PointerEvent('pointermove', {
+            clientX: point.x,
+            clientY: point.y,
+            bubbles: true,
+          }))
+          canvas.dispatchEvent(new PointerEvent('pointerdown', {
+            clientX: point.x,
+            clientY: point.y,
+            bubbles: true,
+            button: 0,
+            pointerId: 1,
+            pointerType: 'mouse',
+            isPrimary: true,
+          }))
+        },
+        setTheme: function (theme) {
+          document.body.setAttribute('data-theme', theme)
+        },
+        setSize: function (width, height) {
+          var stage = document.getElementById('stage')
+          stage.style.width = width + 'px'
+          stage.style.height = height + 'px'
+          document.getElementById('size-label').textContent = width + '×' + height
+          window.dispatchEvent(new Event('resize'))
+        },
+        openRules: function () {
+          return api.clickButton('📖 规则')
+        },
+        rulesOpen: function () {
+          return !!gameRoot.querySelector('[role="dialog"]')
+        },
+        closeRules: function () {
+          var close = gameRoot.querySelector('[role="dialog"] button[aria-label="关闭"]')
+          if (!close) return false
+          close.click()
+          return true
+        },
+        wait: function (ms) {
+          return new Promise(function (resolve) {
+            setTimeout(resolve, ms)
+          })
+        },
+        reset: function () {
+          localStorage.removeItem(S.STORE_KEY)
+          location.reload()
+        },
+        snapshot: function () {
+          return {
+            status: api.status(),
+            save: api.save(),
+            errors: window.__previewErrors.slice(),
+            canvas: !!api.canvas(),
+            buttons: api.buttons(),
+            rulesOpen: api.rulesOpen(),
+            gameRootSize: gameRoot.getBoundingClientRect && (function (rect) {
+              return { width: rect.width, height: rect.height }
+            })(gameRoot.getBoundingClientRect()),
+          }
+        },
+      }
+      window.__preview = api
+
+      /* 启动检查渲染 */
+      var passed = 0
+      var lines = []
+      for (var i = 0; i < bootChecks.length; i += 1) {
+        if (bootChecks[i].ok) passed += 1
+        lines.push((bootChecks[i].ok ? 'ok   ' : 'FAIL ') + bootChecks[i].name +
+          (bootChecks[i].ok || !bootChecks[i].detail ? '' : ' — ' + bootChecks[i].detail))
+      }
+      document.getElementById('boot-checks').textContent =
+        passed + '/' + bootChecks.length + ' passed\n' + lines.join('\n')
+
+      function refreshSnapshot() {
+        try {
+          document.getElementById('snapshot').textContent = JSON.stringify(api.snapshot(), null, 2)
+        } catch (error) {
+          document.getElementById('snapshot').textContent = 'snapshot error: ' + error
+        }
+      }
+      refreshSnapshot()
+      setInterval(refreshSnapshot, 400)
+
+      document.getElementById('theme-toggle').addEventListener('click', function () {
+        var next = document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'
+        api.setTheme(next)
+      })
+      document.getElementById('rules-top').addEventListener('click', function () {
+        api.openRules()
+      })
+      document.getElementById('reset-top').addEventListener('click', function () {
+        api.reset()
+      })
+      var sizeButtons = document.querySelectorAll('#size-row button')
+      for (var j = 0; j < sizeButtons.length; j += 1) {
+        sizeButtons[j].addEventListener('click', function (event) {
+          var parts = event.currentTarget.getAttribute('data-size').split('x')
+          api.setSize(Number(parts[0]), Number(parts[1]))
+        })
+      }
+    } catch (error) {
+      window.__previewErrors.push('boot failed: ' + (error && error.stack ? error.stack : error))
+      document.getElementById('boot-checks').textContent = 'BOOT FAILED\n' + error
+      console.error(error)
+    }
+  })()
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="2048">
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#bbada0"/>
+  <rect x="9" y="9" width="21" height="21" rx="5" fill="#eee4da"/>
+  <rect x="34" y="9" width="21" height="21" rx="5" fill="#ede0c8"/>
+  <rect x="9" y="34" width="21" height="21" rx="5" fill="#f2b179"/>
+  <rect x="34" y="34" width="21" height="21" rx="5" fill="#edc22e"/>
+  <text x="44.5" y="46.5" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#f9f6f2">2048</text>
+</svg>

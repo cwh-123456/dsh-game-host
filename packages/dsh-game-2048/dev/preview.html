@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>2048 · DSH 游戏包 dev 预览（非宿主验收）</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 20px;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: #f2f3f5;
+    color: #1f2328;
+  }
+  body[data-theme="dark"] { background: #17191c; color: #e8e8e8; }
+  .layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; max-width: 1080px; margin: 0 auto; }
+  .stage-wrap { display: flex; flex-direction: column; gap: 8px; }
+  .stage {
+    width: min(560px, calc(100vw - 40px));
+    height: min(560px, calc(100vw - 40px));
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #bbada0;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.16);
+  }
+  .note { margin: 0; font-size: 12px; opacity: 0.65; }
+  .side { flex: 1 1 300px; min-width: 260px; display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  .stats { display: flex; gap: 10px; font-size: 14px; }
+  .stat { padding: 6px 12px; border-radius: 8px; background: rgba(127, 127, 127, 0.14); }
+  .stat b { font-variant-numeric: tabular-nums; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font: inherit;
+    font-size: 13px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(127, 127, 127, 0.35);
+    background: rgba(127, 127, 127, 0.12);
+    color: inherit;
+    cursor: pointer;
+  }
+  button:hover { background: rgba(127, 127, 127, 0.22); }
+  kbd { padding: 1px 5px; border: 1px solid rgba(127, 127, 127, 0.4); border-radius: 4px; font-size: 12px; }
+  pre {
+    margin: 0;
+    min-height: 48px;
+    max-height: 180px;
+    overflow: auto;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(127, 127, 127, 0.1);
+    font-size: 12px;
+    white-space: pre-wrap;
+  }
+  .hint { font-size: 12.5px; line-height: 1.6; opacity: 0.8; }
+</style>
+</head>
+<body data-theme="light">
+<div class="layout">
+  <div class="stage-wrap">
+    <div id="stage" class="stage"></div>
+    <p class="note">开发预览：只验证 canvas 渲染与运行时 API，<strong>不是</strong>宿主内验收。</p>
+  </div>
+  <aside class="side">
+    <h1>2048 · dev preview</h1>
+    <div class="stats">
+      <div class="stat">分数 <b id="score">0</b></div>
+      <div class="stat">最高 <b id="best">0</b></div>
+      <div class="stat">状态 <b id="status">进行中</b></div>
+    </div>
+    <div class="row">
+      <button id="new">新游戏</button>
+      <button id="undo">撤销</button>
+      <button id="demo">载入演示盘面</button>
+      <button id="theme">切换页面主题</button>
+    </div>
+    <div class="hint">
+      点一下棋盘聚焦后：<kbd>方向键</kbd> / <kbd>WASD</kbd> 移动，<kbd>U</kbd> 撤销；也可以按住拖拽滑动。<br>
+      默认暗色/亮色页面下画布都应该清晰（棋盘自带不透明底色）。
+    </div>
+    <pre id="log">ready</pre>
+  </aside>
+</div>
+
+<script>
+  // Test seam: lets this page import the real client.js without the DSH module table.
+  window.__DSH_GAME_2048_TEST__ = true
+  window.__ModuleLoader__ = {
+    load(definition) { window.__loadedGameDefinition = definition },
+  }
+  window.addEventListener('error', function (event) {
+    var log = document.getElementById('log')
+    log.textContent += '\nwindow.error: ' + (event.message || event.error)
+  })
+</script>
+<script src="../client.js"></script>
+<script>
+  (function () {
+    'use strict'
+    var log = document.getElementById('log')
+    var scoreEl = document.getElementById('score')
+    var bestEl = document.getElementById('best')
+    var statusEl = document.getElementById('status')
+    var stage = document.getElementById('stage')
+    var api = window.__DSH_GAME_2048__
+    var game = null
+
+    function appendLog(message) {
+      log.textContent += '\n' + message
+      log.scrollTop = log.scrollHeight
+    }
+
+    function renderState(state) {
+      scoreEl.textContent = String(state.score)
+      bestEl.textContent = String(state.best)
+      statusEl.textContent = state.over ? '无路可走' : state.won && !state.winAcked ? '达到 2048' : '进行中'
+    }
+
+    function boot() {
+      if (game) {
+        game.destroy()
+        game = null
+      }
+      try {
+        game = api.createGame(stage, {
+          onState: renderState,
+          onError: function (message) { appendLog('game onError: ' + message) },
+        })
+        appendLog('booted; seam=' + (window.__DSH_GAME_2048__ ? 'yes' : 'no'))
+      } catch (error) {
+        appendLog('boot failed: ' + (error && error.message ? error.message : error))
+      }
+    }
+
+    document.getElementById('new').addEventListener('click', function () {
+      if (game) game.newGame()
+    })
+    document.getElementById('undo').addEventListener('click', function () {
+      if (game) game.undo()
+    })
+    document.getElementById('theme').addEventListener('click', function () {
+      var dark = document.body.dataset.theme === 'dark'
+      document.body.dataset.theme = dark ? 'light' : 'dark'
+      appendLog('theme -> ' + document.body.dataset.theme)
+    })
+    document.getElementById('demo').addEventListener('click', function () {
+      // Seed a curated board through the public store key, then reboot.
+      try {
+        // Destroy first: destroy() persists the current game and would otherwise
+        // overwrite the demo save we are about to write.
+        if (game) {
+          game.destroy()
+          game = null
+        }
+        var board = new Array(16).fill(0)
+        var values = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 2, 4, 8, 16, 32]
+        for (var index = 0; index < 16; index += 1) board[index] = values[index]
+        window.localStorage.setItem('dsh.game.2048.v1', JSON.stringify({
+          schemaVersion: 1,
+          board: board,
+          score: 12288,
+          best: 12288,
+          won: true,
+          winAcked: false,
+          undo: null,
+        }))
+        boot()
+      } catch (error) {
+        appendLog('demo board failed: ' + (error && error.message ? error.message : error))
+      }
+    })
+
+    boot()
+  })()
+</script>
+</body>
+</html>

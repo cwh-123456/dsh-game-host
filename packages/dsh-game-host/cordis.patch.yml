@@ -1,0 +1,3 @@
+- insert:
+    - id: game-host
+      name: dsh-game-host
