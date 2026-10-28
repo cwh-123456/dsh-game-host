@@ -182,7 +182,13 @@ check('组件只依赖 props（没有用 sessionId 之类宿主内部字段）',
 check('loader id 等于 package.json name', client.includes("id: '@local/dsh-game-complexweeper'"), '')
 
 /* ------------------------------ 9. 安全/健壮性静态检查 ------------------------------ */
-check('无全局键盘监听（契约 §6）', !/keydown|keyup|keypress/i.test(client))
+// 契约 §6 禁的是「全局」键盘监听（window/document 级），不是 React 的 onKeyDown 属性。
+// 所以这里匹配真正的监听注册，而不是裸的 "keydown" 字样。
+check(
+  '无全局键盘监听（契约 §6）',
+  !/addEventListener\(\s*['"](keydown|keyup|keypress)['"]/i.test(client) &&
+    !/on(keydown|keyup|keypress)\s*=[^:=]/i.test(client),
+)
 check('没有 document.body 挂节点', !/document\.body/.test(client))
 check('没有改 document.title', !/document\.title\s*=/.test(client))
 check('没有联网 API', !/\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|import\s*\(/.test(client))

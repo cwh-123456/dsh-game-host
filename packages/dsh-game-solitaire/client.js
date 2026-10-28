@@ -1681,6 +1681,17 @@
     '.dshsol-panel-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}',
     '.dshsol-toosmall{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:rgba(255,255,255,.8);font-size:13px;text-align:center;padding:12px;line-height:1.6;}',
     '.dshsol-toosmall b{font-size:15px;}',
+    // 「规则」弹窗：与同系列其它游戏保持同一套几何与 token。
+    '.dshsol-rules-mask{position:absolute;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--dsw-alias-bg-mask-1,rgba(0,0,0,.45));}',
+    '.dshsol-rules-card{width:min(560px,100%);max-height:86%;overflow:auto;border-radius:14px;background:var(--dsw-alias-bg-layer-2,#f1f3f5);border:1px solid var(--dsw-alias-border-l1,#d0d7de);box-shadow:0 12px 40px rgba(0,0,0,.3);outline:none;}',
+    '.dshsol-rules-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:12px;padding:13px 18px;background:var(--dsw-alias-bg-layer-2,#f1f3f5);border-bottom:1px solid var(--dsw-alias-border-l1,#d0d7de);}',
+    '.dshsol-rules-title{flex:1;font-size:15px;font-weight:600;}',
+    '.dshsol-rules-close{border:0;background:transparent;color:var(--dsw-alias-label-tertiary,#8b949e);cursor:pointer;font-size:22px;line-height:1;padding:0 4px;border-radius:6px;font-family:inherit;}',
+    '.dshsol-rules-body{padding:2px 18px 20px;}',
+    '.dshsol-rules-body h3{font-size:12.5px;letter-spacing:.04em;color:var(--dsw-alias-label-primary,#1f2328);margin:20px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--dsw-alias-border-l1,#d0d7de);font-weight:600;}',
+    '.dshsol-rules-body ul{margin:8px 0;padding-left:19px;}',
+    '.dshsol-rules-body li{font-size:13px;line-height:21px;color:var(--dsw-alias-label-secondary,#57606a);margin:6px 0;}',
+    '.dshsol-rules-tip{font-size:12.5px;line-height:19px;color:var(--dsw-alias-label-secondary,#57606a);background:var(--dsw-alias-interactive-bg-hover,#eceff2);border-left:2px solid var(--dsw-alias-brand-primary,#2f81f7);border-radius:0 7px 7px 0;padding:9px 12px;margin:10px 0;}',
   ].join('')
 
   // ---------------------------------------------------------------------------
@@ -2033,6 +2044,105 @@
           )
         }
 
+        // Stable identity so React does not detach/re-attach the ref every render.
+        function focusCard(node) {
+          if (node) node.focus()
+        }
+
+        function RulesModal(props) {
+          function li(key, children) {
+            return h('li', { key: key }, children)
+          }
+          function b(key, text) {
+            return h('b', { key: key }, text)
+          }
+          return h(
+            'div',
+            {
+              className: 'dshsol-rules-mask',
+              onMouseDown: function (event) {
+                if (event.target === event.currentTarget) props.onClose()
+              },
+            },
+            h(
+              'div',
+              {
+                ref: focusCard,
+                tabIndex: -1,
+                className: 'dshsol-rules-card',
+                role: 'dialog',
+                'aria-modal': 'true',
+                'aria-label': '接龙规则',
+                onKeyDown: function (event) {
+                  // Modal: swallow every key so the board behind does not react.
+                  event.stopPropagation()
+                  if (event.key === 'Escape') props.onClose()
+                },
+              },
+              h(
+                'div',
+                { className: 'dshsol-rules-head' },
+                h('span', { className: 'dshsol-rules-title' }, '接龙 · 规则与操作'),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'dshsol-rules-close',
+                    onClick: props.onClose,
+                    'aria-label': '关闭',
+                  },
+                  '×',
+                ),
+              ),
+              h(
+                'div',
+                { className: 'dshsol-rules-body' },
+                h('h3', null, '一、目标'),
+                h(
+                  'ul',
+                  null,
+                  li('a1', ['把 52 张牌按花色整理成四摞：', b('a1a', '每种花色从 A 一路叠到 K'), '，四摞都到 K 就通关。']),
+                  li('a2', ['经典 Klondike 规则，牌堆一次翻 1 张。']),
+                ),
+                h('h3', null, '二、牌桌怎么摆'),
+                h(
+                  'ul',
+                  null,
+                  li('b1', ['7 列牌桌：第 1 列 1 张、第 7 列 7 张，只有每列最下面一张是翻开的。']),
+                  li('b2', ['列内只能按 ', b('b2a', '降序、红黑交替'), ' 叠放（红 7 上放黑 6，黑 10 上放红 9）。']),
+                  li('b3', ['可以整段移动，但被拿起的这一段本身必须已经是合法序列。']),
+                  li('b4', ['空列只接受 K，或以 K 开头的一整段。']),
+                  li('b5', ['一段牌被移走后，新露出来的扣牌会自动翻开。']),
+                ),
+                h('h3', null, '三、牌堆与基座'),
+                h(
+                  'ul',
+                  null,
+                  li('c1', ['剩下 24 张作为牌堆，点一次翻 1 张到弃牌堆。']),
+                  li('c2', ['牌堆空了再点一次，弃牌堆会整体翻回去重翻，次数不限。']),
+                  li('c3', ['基座同花色、从 A 开始升序收到 K；弃牌堆顶和牌桌面朝上的牌都能进基座。']),
+                  li('c4', ['基座顶牌也能点选后', b('c4a', '移回牌桌'), '，用来纠正放错的牌。']),
+                ),
+                h('h3', null, '四、操作'),
+                h(
+                  'ul',
+                  null,
+                  li('d1', ['拖拽面朝上的牌（整段一起拿起）到目标列或基座松手；目标会高亮，非法位置弹回并说明原因。']),
+                  li('d2', ['也可以点选中、再点目标放下。点空白处或按 Esc 取消选中。']),
+                  li('d3', [b('d3a', '双击'), '一张顶牌（每列最下面那张或弃牌堆顶）= 自动送进对应的基座。']),
+                  li('d4', ['「撤销」退回上一步（至少 20 步），也可以用 Ctrl+Z。']),
+                  li('d5', ['「重开」= 同一副牌重新发；「新游戏」= 换一副新牌。']),
+                ),
+                h(
+                  'div',
+                  { className: 'dshsol-rules-tip' },
+                  '先别急着把 A 都收进基座 —— 基座上的牌就不能再回牌桌帮你叠牌了。翻开扣牌、腾出空列，通常比急着收牌更重要。',
+                ),
+              ),
+            ),
+          )
+        }
+
         function makePlaceholderView() {
           return {
             width: 0,
@@ -2067,6 +2177,7 @@
           const gameRef = React.useRef(null)
           const [view, setView] = React.useState(makePlaceholderView)
           const [error, setError] = React.useState(null)
+          const [rulesOpen, setRulesOpen] = React.useState(false)
           const [attempt, setAttempt] = React.useState(0)
 
           React.useEffect(function () {
@@ -2337,6 +2448,19 @@
                   {
                     type: 'button',
                     className: 'dshsol-btn',
+                    onClick: function () {
+                      setRulesOpen(true)
+                    },
+                    'aria-haspopup': 'dialog',
+                    title: '查看规则与操作',
+                  },
+                  '📖 规则',
+                ),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'dshsol-btn',
                     disabled: view.undoCount === 0,
                     onClick: onUndo,
                     title: '撤销上一步（Ctrl+Z）',
@@ -2362,6 +2486,13 @@
               boardChildren,
               overlay,
             ),
+            rulesOpen
+              ? h(RulesModal, {
+                  onClose: function () {
+                    setRulesOpen(false)
+                  },
+                })
+              : null,
           )
         }
 

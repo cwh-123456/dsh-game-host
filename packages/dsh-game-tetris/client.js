@@ -1699,6 +1699,76 @@
           whiteSpace: 'nowrap',
         },
         buttonDisabled: { opacity: 0.45, cursor: 'default' },
+        // 「规则」弹窗：与同系列其它游戏保持同一套几何与 token。
+        rulesMask: {
+          position: 'absolute',
+          inset: 0,
+          zIndex: 20,
+          padding: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--dsw-alias-bg-mask-1, rgba(0,0,0,0.45))',
+        },
+        rulesCard: {
+          width: 'min(560px, 100%)',
+          maxHeight: '86%',
+          overflow: 'auto',
+          borderRadius: 14,
+          background: 'var(--dsw-alias-bg-layer-2)',
+          border: '0.5px solid var(--dsw-alias-border-l1)',
+          boxShadow: 'var(--dsw-elevation-panel, 0 12px 40px rgba(0,0,0,0.3))',
+          outline: 'none',
+        },
+        rulesHead: {
+          position: 'sticky',
+          top: 0,
+          zIndex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '13px 18px',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          borderBottom: '0.5px solid var(--dsw-alias-border-l1)',
+        },
+        rulesTitle: { flex: 1, fontSize: 15, fontWeight: 600 },
+        rulesClose: {
+          border: 0,
+          background: 'transparent',
+          color: 'var(--dsw-alias-label-tertiary)',
+          cursor: 'pointer',
+          fontSize: 22,
+          lineHeight: 1,
+          padding: '0 4px',
+          borderRadius: 6,
+          fontFamily: 'inherit',
+        },
+        rulesBody: { padding: '2px 18px 20px' },
+        rulesH3: {
+          fontSize: 12.5,
+          letterSpacing: '0.04em',
+          color: 'var(--dsw-alias-label-primary)',
+          margin: '20px 0 8px',
+          paddingBottom: 6,
+          borderBottom: '0.5px solid var(--dsw-alias-border-l1)',
+        },
+        rulesUl: { margin: '8px 0', paddingLeft: 19 },
+        rulesLi: {
+          fontSize: 13,
+          lineHeight: '21px',
+          color: 'var(--dsw-alias-label-secondary)',
+          margin: '6px 0',
+        },
+        rulesTip: {
+          fontSize: 12.5,
+          lineHeight: '19px',
+          color: 'var(--dsw-alias-label-secondary)',
+          background: 'var(--dsw-alias-interactive-bg-hover)',
+          borderLeft: '2px solid var(--dsw-alias-brand-primary, #2f81f7)',
+          borderRadius: '0 7px 7px 0',
+          padding: '9px 12px',
+          margin: '10px 0',
+        },
         stage: { position: 'relative', flex: 1, minHeight: 0, borderRadius: 10, overflow: 'hidden' },
         host: { position: 'absolute', inset: 0, outline: 'none' },
         focusHint: {
@@ -1813,6 +1883,106 @@
         )
       }
 
+      // Stable identity so React does not detach/re-attach the ref every render.
+      function focusCard(node) {
+        if (node) node.focus()
+      }
+
+      function RulesModal(props) {
+        function li(key, children) {
+          return h('li', { key: key, style: UI.rulesLi }, children)
+        }
+        function b(key, text) {
+          return h('b', { key: key }, text)
+        }
+        return h(
+          'div',
+          {
+            style: UI.rulesMask,
+            onMouseDown: function (event) {
+              if (event.target === event.currentTarget) props.onClose()
+            },
+          },
+          h(
+            'div',
+            {
+              ref: focusCard,
+              tabIndex: -1,
+              style: UI.rulesCard,
+              role: 'dialog',
+              'aria-modal': 'true',
+              'aria-label': '俄罗斯方块规则',
+              onKeyDown: function (event) {
+                // Modal: swallow every key so the board behind does not react.
+                event.stopPropagation()
+                if (event.key === 'Escape') props.onClose()
+              },
+            },
+            h(
+              'div',
+              { style: UI.rulesHead },
+              h('div', { style: UI.rulesTitle }, '俄罗斯方块 · 规则与操作'),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dshtetris-btn',
+                  style: UI.rulesClose,
+                  onClick: props.onClose,
+                  'aria-label': '关闭',
+                },
+                '×',
+              ),
+            ),
+            h(
+              'div',
+              { style: UI.rulesBody },
+              h('h3', { style: UI.rulesH3 }, '一、目标'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('a1', ['棋盘 ', b('a1a', '10 列 × 20 行'), '（上方另有 2 行隐藏出生区）。方块从顶部落下，堆满一整行就消掉。']),
+                li('a2', ['新方块出生位置被占住时，游戏结束。']),
+                li('a3', ['棋盘上的半透明方块是', b('a3a', '幽灵落点'), '，显示这一块会落在哪。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '二、方块与随机'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('b1', ['7 种方块 I、O、T、S、Z、J、L，各 4 个旋转态。']),
+                li('b2', [b('b2a', '7-bag 随机'), '：7 种各发一次、洗牌发完再洗下一袋，不会长时间等不到某一种。']),
+                li('b3', ['右侧 HOLD 槽可暂存一块，NEXT 显示接下来 5 块。']),
+                li('b4', ['每个方块', b('b4a', '只能暂存一次'), '：暂存后要等下一块落下才能再存。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '三、按键'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('c1', ['← / → 左右移动；↓ 软降，每格 +1 分。']),
+                li('c2', ['↑ 或 X 顺时针旋转，Z 逆时针旋转。旋转有墙踢：依次尝试原地、左右 1 列、左右 2 列、上移 1 行。']),
+                li('c3', ['空格硬降：直接落底并锁定，每格 +2 分。']),
+                li('c4', ['C 或 Shift 暂存 / 换回；P 暂停 / 继续；R 重开一局。']),
+                li('c5', ['键盘要先点一下棋盘才生效（画面上会提示「点击棋盘以启用键盘」）。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '四、计分与速度'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('d1', ['一次消 1 / 2 / 3 / 4 行 = ', b('d1a', '100 / 300 / 500 / 800'), ' × 当前等级。']),
+                li('d2', ['每消 10 行升 1 级，下落间隔 = max(80, 800 − (等级−1)×60) 毫秒，越往后越快。']),
+                li('d3', ['方块落地后有 ', b('d3a', '400ms 锁定延迟'), '；期间移动或旋转会重置计时，最多重置 15 次。']),
+                li('d4', ['切到后台会自动暂停，回来后继续，用时按实际游戏时间计。']),
+              ),
+              h(
+                'div',
+                { style: UI.rulesTip },
+                '四行一起消（Tetris）拿 800 分，比零散消行划算得多。所以在边上留一条竖井给 I 块，是俄罗斯方块最经典的基本功。',
+              ),
+            ),
+          ),
+        )
+      }
+
       const INITIAL_SNAPSHOT = {
         score: 0,
         lines: 0,
@@ -1833,6 +2003,7 @@
         const gameRef = React.useRef(null)
         const [snapshot, setSnapshot] = React.useState(INITIAL_SNAPSHOT)
         const [error, setError] = React.useState(null)
+        const [rulesOpen, setRulesOpen] = React.useState(false)
         const [attempt, setAttempt] = React.useState(0)
 
         React.useEffect(() => {
@@ -1969,6 +2140,19 @@
                 {
                   type: 'button',
                   className: 'dshtetris-btn',
+                  style: UI.button,
+                  onClick: function () {
+                    setRulesOpen(true)
+                  },
+                  'aria-haspopup': 'dialog',
+                },
+                '📖 规则',
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dshtetris-btn',
                   style: snapshot.over || error ? Object.assign({}, UI.button, UI.buttonDisabled) : UI.button,
                   disabled: snapshot.over || Boolean(error),
                   onClick: togglePause,
@@ -1990,6 +2174,13 @@
               ? null
               : h('div', { style: UI.focusHint }, '点击棋盘以启用键盘'),
             overlay,
+            rulesOpen
+              ? h(RulesModal, {
+                  onClose: function () {
+                    setRulesOpen(false)
+                  },
+                })
+              : null,
           ),
         )
       }

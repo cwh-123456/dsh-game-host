@@ -1259,6 +1259,76 @@
           whiteSpace: 'nowrap',
         },
         actions: { display: 'flex', gap: 8 },
+        // 「规则」弹窗：与同系列其它游戏保持同一套几何与 token。
+        rulesMask: {
+          position: 'absolute',
+          inset: 0,
+          zIndex: 20,
+          padding: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--dsw-alias-bg-mask-1, rgba(0,0,0,0.45))',
+        },
+        rulesCard: {
+          width: 'min(560px, 100%)',
+          maxHeight: '86%',
+          overflow: 'auto',
+          borderRadius: 14,
+          background: 'var(--dsw-alias-bg-layer-2)',
+          border: '0.5px solid var(--dsw-alias-border-l1)',
+          boxShadow: 'var(--dsw-elevation-panel, 0 12px 40px rgba(0,0,0,0.3))',
+          outline: 'none',
+        },
+        rulesHead: {
+          position: 'sticky',
+          top: 0,
+          zIndex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '13px 18px',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          borderBottom: '0.5px solid var(--dsw-alias-border-l1)',
+        },
+        rulesTitle: { flex: 1, fontSize: 15, fontWeight: 600 },
+        rulesClose: {
+          border: 0,
+          background: 'transparent',
+          color: 'var(--dsw-alias-label-tertiary)',
+          cursor: 'pointer',
+          fontSize: 22,
+          lineHeight: 1,
+          padding: '0 4px',
+          borderRadius: 6,
+          fontFamily: 'inherit',
+        },
+        rulesBody: { padding: '2px 18px 20px' },
+        rulesH3: {
+          fontSize: 12.5,
+          letterSpacing: '0.04em',
+          color: 'var(--dsw-alias-label-primary)',
+          margin: '20px 0 8px',
+          paddingBottom: 6,
+          borderBottom: '0.5px solid var(--dsw-alias-border-l1)',
+        },
+        rulesUl: { margin: '8px 0', paddingLeft: 19 },
+        rulesLi: {
+          fontSize: 13,
+          lineHeight: '21px',
+          color: 'var(--dsw-alias-label-secondary)',
+          margin: '6px 0',
+        },
+        rulesTip: {
+          fontSize: 12.5,
+          lineHeight: '19px',
+          color: 'var(--dsw-alias-label-secondary)',
+          background: 'var(--dsw-alias-interactive-bg-hover)',
+          borderLeft: '2px solid var(--dsw-alias-brand-primary, #2f81f7)',
+          borderRadius: '0 7px 7px 0',
+          padding: '9px 12px',
+          margin: '10px 0',
+        },
         stage: { position: 'relative', flex: 1, minHeight: 0, borderRadius: 10, overflow: 'hidden' },
         host: { position: 'absolute', inset: 0, outline: 'none' },
         overlay: {
@@ -1333,6 +1403,104 @@
         )
       }
 
+      // Stable identity so React does not detach/re-attach the ref every render.
+      function focusCard(node) {
+        if (node) node.focus()
+      }
+
+      function RulesModal(props) {
+        function li(key, children) {
+          return h('li', { key: key, style: UI.rulesLi }, children)
+        }
+        function b(key, text) {
+          return h('b', { key: key }, text)
+        }
+        return h(
+          'div',
+          {
+            style: UI.rulesMask,
+            onMouseDown: function (event) {
+              if (event.target === event.currentTarget) props.onClose()
+            },
+          },
+          h(
+            'div',
+            {
+              ref: focusCard,
+              tabIndex: -1,
+              style: UI.rulesCard,
+              role: 'dialog',
+              'aria-modal': 'true',
+              'aria-label': '扫雷规则',
+              onKeyDown: function (event) {
+                // Modal: swallow every key so the board behind does not react.
+                event.stopPropagation()
+                if (event.key === 'Escape') props.onClose()
+              },
+            },
+            h(
+              'div',
+              { style: UI.rulesHead },
+              h('div', { style: UI.rulesTitle }, '扫雷 · 规则与操作'),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dshmines-btn',
+                  style: UI.rulesClose,
+                  onClick: props.onClose,
+                  'aria-label': '关闭',
+                },
+                '×',
+              ),
+            ),
+            h(
+              'div',
+              { style: UI.rulesBody },
+              h('h3', { style: UI.rulesH3 }, '一、目标'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('a1', ['棋盘里埋着一批地雷，把', b('a1a', '所有不是雷的格子翻开'), '就通关。']),
+                li('a2', ['踩到雷立刻结束：会亮出全部地雷，插错的旗子也会被标出来。']),
+                li('a3', [b('a3a', '第一下必然安全'), '：第一次翻开的格子连同它周围一圈都不会埋雷。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '二、数字怎么看'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('b1', ['格子上的数字表示它', b('b1a', '周围 8 格'), '里一共有几颗雷。']),
+                li('b2', ['数字为 0（空白）时会自动把相连的空白区一起展开。']),
+                li('b3', ['工具栏「剩余」= 总雷数 − 已插旗数，只反映旗子数量，不代表插得对。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '三、难度'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('c1', [b('c1a', '初级'), '：9×9，10 颗雷。']),
+                li('c2', [b('c2a', '中级'), '：16×16，40 颗雷。']),
+                li('c3', [b('c3a', '高级'), '：30×16（宽×高），99 颗雷。']),
+                li('c4', ['切难度会直接开新局；每档分别记录最佳用时。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '四、操作'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('d1', [b('d1a', '左键'), '翻开格子；', b('d1b', '右键'), '在未翻开的格子上插旗 / 取消旗。']),
+                li('d2', [b('d2a', '双击数字'), '（或中键）是快开：当这个数字周围插的旗数正好等于它时，一次翻开其余邻格。']),
+                li('d3', ['计时从第一次翻开开始；切到后台会暂停，切回来继续。']),
+                li('d4', ['离开游戏页再回来，进度和用时都会保留。']),
+              ),
+              h(
+                'div',
+                { style: UI.rulesTip },
+                '快开是双刃剑：旗子插错了位置，快开就会把真正的雷翻出来。所以插旗要准，快开前先确认数字周围那几格真的已经标全。',
+              ),
+            ),
+          ),
+        )
+      }
+
       const INITIAL_SNAPSHOT = {
         difficulty: 'beginner',
         status: 'ready',
@@ -1386,6 +1554,7 @@
         const gameRef = React.useRef(null)
         const [snapshot, setSnapshot] = React.useState(INITIAL_SNAPSHOT)
         const [error, setError] = React.useState(null)
+        const [rulesOpen, setRulesOpen] = React.useState(false)
         const [attempt, setAttempt] = React.useState(0)
 
         React.useEffect(() => {
@@ -1483,6 +1652,19 @@
               { style: UI.actions },
               h(
                 'button',
+                {
+                  type: 'button',
+                  className: 'dshmines-btn',
+                  style: UI.button,
+                  onClick: function () {
+                    setRulesOpen(true)
+                  },
+                  'aria-haspopup': 'dialog',
+                },
+                '📖 规则',
+              ),
+              h(
+                'button',
                 { type: 'button', className: 'dshmines-btn', style: UI.button, onClick: restart },
                 '新游戏',
               ),
@@ -1498,6 +1680,13 @@
               { style: { position: 'absolute', right: 8, bottom: 6, fontSize: 10, color: 'var(--dsw-alias-label-tertiary)', pointerEvents: 'none' } },
               levelLabel + ' · ' + snapshot.mines + ' 雷',
             ),
+            rulesOpen
+              ? h(RulesModal, {
+                  onClose: function () {
+                    setRulesOpen(false)
+                  },
+                })
+              : null,
           ),
         )
       }

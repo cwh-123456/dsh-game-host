@@ -1044,6 +1044,77 @@
           whiteSpace: 'nowrap',
         },
         buttonDisabled: { opacity: 0.45, cursor: 'default' },
+        // Rules dialog ("规则"). Same geometry/tokens as the other games in the
+        // deck so the modal reads as one family across packages.
+        rulesMask: {
+          position: 'absolute',
+          inset: 0,
+          zIndex: 20,
+          padding: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--dsw-alias-bg-mask-1, rgba(0,0,0,0.45))',
+        },
+        rulesCard: {
+          width: 'min(560px, 100%)',
+          maxHeight: '86%',
+          overflow: 'auto',
+          borderRadius: 14,
+          background: 'var(--dsw-alias-bg-layer-2)',
+          border: '0.5px solid var(--dsw-alias-border-l1)',
+          boxShadow: 'var(--dsw-elevation-panel, 0 12px 40px rgba(0,0,0,0.3))',
+          outline: 'none',
+        },
+        rulesHead: {
+          position: 'sticky',
+          top: 0,
+          zIndex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '13px 18px',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          borderBottom: '0.5px solid var(--dsw-alias-border-l1)',
+        },
+        rulesTitle: { flex: 1, fontSize: 15, fontWeight: 600 },
+        rulesClose: {
+          border: 0,
+          background: 'transparent',
+          color: 'var(--dsw-alias-label-tertiary)',
+          cursor: 'pointer',
+          fontSize: 22,
+          lineHeight: 1,
+          padding: '0 4px',
+          borderRadius: 6,
+          fontFamily: 'inherit',
+        },
+        rulesBody: { padding: '2px 18px 20px' },
+        rulesH3: {
+          fontSize: 12.5,
+          letterSpacing: '0.04em',
+          color: 'var(--dsw-alias-label-primary)',
+          margin: '20px 0 8px',
+          paddingBottom: 6,
+          borderBottom: '0.5px solid var(--dsw-alias-border-l1)',
+        },
+        rulesUl: { margin: '8px 0', paddingLeft: 19 },
+        rulesLi: {
+          fontSize: 13,
+          lineHeight: '21px',
+          color: 'var(--dsw-alias-label-secondary)',
+          margin: '6px 0',
+        },
+        rulesTip: {
+          fontSize: 12.5,
+          lineHeight: '19px',
+          color: 'var(--dsw-alias-label-secondary)',
+          background: 'var(--dsw-alias-interactive-bg-hover)',
+          borderLeft: '2px solid var(--dsw-alias-brand-primary, #2f81f7)',
+          borderRadius: '0 7px 7px 0',
+          padding: '9px 12px',
+          margin: '10px 0',
+        },
         stage: { position: 'relative', flex: 1, minHeight: 0, borderRadius: 10, overflow: 'hidden' },
         host: { position: 'absolute', inset: 0, outline: 'none' },
         overlay: {
@@ -1131,12 +1202,109 @@
         canUndo: false,
       }
 
+      // Stable identity so React does not detach/re-attach the ref every render.
+      function focusCard(node) {
+        if (node) node.focus()
+      }
+
+      function RulesModal(props) {
+        function li(key, children) {
+          return h('li', { key: key, style: UI.rulesLi }, children)
+        }
+        function b(key, text) {
+          return h('b', { key: key }, text)
+        }
+        return h(
+          'div',
+          {
+            style: UI.rulesMask,
+            onMouseDown: function (event) {
+              if (event.target === event.currentTarget) props.onClose()
+            },
+          },
+          h(
+            'div',
+            {
+              ref: focusCard,
+              tabIndex: -1,
+              style: UI.rulesCard,
+              role: 'dialog',
+              'aria-modal': 'true',
+              'aria-label': '2048 规则',
+              onKeyDown: function (event) {
+                // Modal: swallow every key so the board behind does not react.
+                event.stopPropagation()
+                if (event.key === 'Escape') props.onClose()
+              },
+            },
+            h(
+              'div',
+              { style: UI.rulesHead },
+              h('div', { style: UI.rulesTitle }, '2048 · 规则与操作'),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dsh2048-btn',
+                  style: UI.rulesClose,
+                  onClick: props.onClose,
+                  'aria-label': '关闭',
+                },
+                '×',
+              ),
+            ),
+            h(
+              'div',
+              { style: UI.rulesBody },
+              h('h3', { style: UI.rulesH3 }, '一、目标'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('a1', ['4×4 棋盘，开局随机放两个方块（', b('a1a', '90% 是 2，10% 是 4'), '）。']),
+                li('a2', ['每次移动，所有方块一起滑到那一侧的尽头；', b('a2a', '相同数字相撞就合并'), '成一个，数值相加。']),
+                li('a3', ['合并出 ', b('a3a', '2048'), ' 即达成目标；达成后会问要不要继续挑战更高分。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '二、一步之内的细节'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('b1', ['每走一步，随机空位上会再冒一个新方块：', b('b1a', '90% 是 2，10% 是 4'), '。']),
+                li('b2', ['同一步里每个方块最多只合并一次：', b('b2a', '「2 2 2 2」向左变成「4 4」'), '，不是「8」。']),
+                li('b3', ['如果往某个方向推之后，所有方块的位置和数值都没变，', b('b3a', '这一步不算数'), '，也不会冒新方块。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '三、计分'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('c1', ['每合并一次，把', b('c1a', '合并后的数值'), '加进分数：合成一个 4 得 4 分，合成一个 16 得 16 分。']),
+                li('c2', ['「最高分」长期保留，开新局也不清零。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '四、操作'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('d1', ['方向键或 W / A / S / D 滑动；也可以在棋盘上按住拖动（鼠标、触屏都行）。']),
+                li('d2', ['按 U 或点「撤销」撤回上一步，', b('d2a', '只保留一步'), '。']),
+                li('d3', ['「新游戏」重新开局，最高分保留。']),
+                li('d4', ['棋盘填满且四个方向都合不动时，本局结束。']),
+              ),
+              h(
+                'div',
+                { style: UI.rulesTip },
+                '经典打法：把最大的数字钉在一个角落，其余数字沿一条边排成单调递减的「蛇形」，别频繁往上往下乱推。',
+              ),
+            ),
+          ),
+        )
+      }
+
       function Game(props) {
         const rootRef = React.useRef(null)
         const hostRef = React.useRef(null)
         const gameRef = React.useRef(null)
         const [snapshot, setSnapshot] = React.useState(INITIAL_SNAPSHOT)
         const [error, setError] = React.useState(null)
+        const [rulesOpen, setRulesOpen] = React.useState(false)
         const [attempt, setAttempt] = React.useState(0)
 
         React.useEffect(() => {
@@ -1222,6 +1390,19 @@
                 {
                   type: 'button',
                   className: 'dsh2048-btn',
+                  style: UI.button,
+                  onClick: function () {
+                    setRulesOpen(true)
+                  },
+                  'aria-haspopup': 'dialog',
+                },
+                '📖 规则',
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dsh2048-btn',
                   style: buttonStyle(snapshot.canUndo),
                   disabled: !snapshot.canUndo,
                   onClick: undoMove,
@@ -1256,6 +1437,13 @@
                       onAction: continueAfterWin,
                     })
                   : null,
+            rulesOpen
+              ? h(RulesModal, {
+                  onClose: function () {
+                    setRulesOpen(false)
+                  },
+                })
+              : null,
           ),
         )
       }

@@ -1145,6 +1145,76 @@
           whiteSpace: 'nowrap',
           fontWeight: 600,
         },
+        // 「规则」弹窗：与同系列其它游戏保持同一套几何与 token。
+        rulesMask: {
+          position: 'absolute',
+          inset: 0,
+          zIndex: 20,
+          padding: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--dsw-alias-bg-mask-1, rgba(0,0,0,0.45))',
+        },
+        rulesCard: {
+          width: 'min(560px, 100%)',
+          maxHeight: '86%',
+          overflow: 'auto',
+          borderRadius: 14,
+          background: 'var(--dsw-alias-bg-layer-2)',
+          border: '0.5px solid var(--dsw-alias-border-l1)',
+          boxShadow: 'var(--dsw-elevation-panel, 0 12px 40px rgba(0,0,0,0.3))',
+          outline: 'none',
+        },
+        rulesHead: {
+          position: 'sticky',
+          top: 0,
+          zIndex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '13px 18px',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          borderBottom: '0.5px solid var(--dsw-alias-border-l1)',
+        },
+        rulesTitle: { flex: 1, fontSize: 15, fontWeight: 600 },
+        rulesClose: {
+          border: 0,
+          background: 'transparent',
+          color: 'var(--dsw-alias-label-tertiary)',
+          cursor: 'pointer',
+          fontSize: 22,
+          lineHeight: 1,
+          padding: '0 4px',
+          borderRadius: 6,
+          fontFamily: 'inherit',
+        },
+        rulesBody: { padding: '2px 18px 20px' },
+        rulesH3: {
+          fontSize: 12.5,
+          letterSpacing: '0.04em',
+          color: 'var(--dsw-alias-label-primary)',
+          margin: '20px 0 8px',
+          paddingBottom: 6,
+          borderBottom: '0.5px solid var(--dsw-alias-border-l1)',
+        },
+        rulesUl: { margin: '8px 0', paddingLeft: 19 },
+        rulesLi: {
+          fontSize: 13,
+          lineHeight: '21px',
+          color: 'var(--dsw-alias-label-secondary)',
+          margin: '6px 0',
+        },
+        rulesTip: {
+          fontSize: 12.5,
+          lineHeight: '19px',
+          color: 'var(--dsw-alias-label-secondary)',
+          background: 'var(--dsw-alias-interactive-bg-hover)',
+          borderLeft: '2px solid var(--dsw-alias-brand-primary, #2f81f7)',
+          borderRadius: '0 7px 7px 0',
+          padding: '9px 12px',
+          margin: '10px 0',
+        },
         area: {
           position: 'relative',
           flex: 1,
@@ -1386,6 +1456,106 @@
 
       // ---- main game component ----------------------------------------------
 
+      // Stable identity so React does not detach/re-attach the ref every render.
+      function focusCard(node) {
+        if (node) node.focus()
+      }
+
+      function RulesModal(props) {
+        function li(key, children) {
+          return h('li', { key: key, style: UI.rulesLi }, children)
+        }
+        function b(key, text) {
+          return h('b', { key: key }, text)
+        }
+        return h(
+          'div',
+          {
+            style: UI.rulesMask,
+            onMouseDown: function (event) {
+              if (event.target === event.currentTarget) props.onClose()
+            },
+          },
+          h(
+            'div',
+            {
+              ref: focusCard,
+              tabIndex: -1,
+              style: UI.rulesCard,
+              role: 'dialog',
+              'aria-modal': 'true',
+              'aria-label': '数独规则',
+              onKeyDown: function (event) {
+                // Modal: swallow every key so the board behind does not react.
+                event.stopPropagation()
+                if (event.key === 'Escape') props.onClose()
+              },
+            },
+            h(
+              'div',
+              { style: UI.rulesHead },
+              h('div', { style: UI.rulesTitle }, '数独 · 规则与操作'),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  'data-action': 'close-rules',
+                  style: UI.rulesClose,
+                  onClick: props.onClose,
+                  'aria-label': '关闭',
+                },
+                '×',
+              ),
+            ),
+            h(
+              'div',
+              { style: UI.rulesBody },
+              h('h3', { style: UI.rulesH3 }, '一、目标'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('a1', ['9×9 棋盘，已经给出一部分数字。把空格填满，使', b('a1a', '每行、每列、每个 3×3 宫'), '都恰好包含 1–9 各一次。']),
+                li('a2', ['每道题都保证', b('a2a', '唯一解'), '，不需要猜。']),
+                li('a3', ['全盘填满且没有重复即完成，会显示用时。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '二、难度'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('b1', ['难度按「解开这道题', b('b1a', '最少需要哪一级技巧'), '」划分，不是看给了多少数字：']),
+                li('b2', [b('b2a', '简单'), '：唯一候选、隐性唯一就够了。']),
+                li('b3', [b('b3a', '普通'), '：还需要锁定候选（区块删减）。']),
+                li('b4', [b('b4a', '困难'), '：需要数对 / 数组。']),
+                li('b5', [b('b5a', '专家'), '：需要 X-Wing 或 XY-Wing。']),
+                li('b6', [b('b6a', '地狱'), '：上面这些技巧全用尽仍会卡住 —— 要做假设或更高级的链式推理。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '三、操作'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('c1', ['点格子选中（也可用方向键移动）；选中后会高亮同行、同列、同宫以及盘面上相同的数字。']),
+                li('c2', ['按 1–9 或用屏幕数字键盘填数；Backspace / Delete 或「清除」擦掉。']),
+                li('c3', [b('c3a', '草稿'), '：先点「草稿」或按 N，再按数字就是在格子里记候选（每格 9 个小数字），再按一次切回填数。']),
+                li('c4', ['「撤销」逐步退回（最多 300 步），也可以用 Ctrl+Z / Cmd+Z。']),
+                li('c5', ['「重开」清空填写重玩本题；「新游戏」换一道没做过的题。有进度时会先问一次。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '四、冲突提示'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('d1', ['同行、同列或同宫里出现重复数字时，冲突的格子会', b('d1a', '标红'), '。']),
+                li('d2', ['标红只是提醒，不会阻止你输入 —— 方便先用候选试一下再改。']),
+              ),
+              h(
+                'div',
+                { style: UI.rulesTip },
+                '别急着填。先用草稿把每格的候选写全，再找「某一行里这个数字只可能在这一格」这类唯一位置，比盲目试错快得多。',
+              ),
+            ),
+          ),
+        )
+      }
+
       function Game(props) {
         const rootRef = React.useRef(null)
         const areaRef = React.useRef(null)
@@ -1405,6 +1575,7 @@
           keypadH: KEYPAD_SINGLE_H,
         })
         const [pending, setPending] = React.useState(null)
+        const [rulesOpen, setRulesOpen] = React.useState(false)
         const [runtimeError, setRuntimeError] = React.useState(null)
 
         const bump = React.useCallback(function bump() {
@@ -2014,6 +2185,19 @@
                   'button',
                   {
                     type: 'button',
+                    'data-action': 'rules',
+                    'aria-haspopup': 'dialog',
+                    onClick: function onClickRules() {
+                      setRulesOpen(true)
+                    },
+                    style: UI.button,
+                  },
+                  '📖 规则',
+                ),
+                h(
+                  'button',
+                  {
+                    type: 'button',
                     'data-action': 'notes',
                     'aria-pressed': state.notesMode ? 'true' : 'false',
                     onClick: handleNotesToggle,
@@ -2361,6 +2545,17 @@
                 ),
               ),
             ),
+          )
+        }
+
+        if (rulesOpen) {
+          children.push(
+            h(RulesModal, {
+              key: 'rules',
+              onClose: function onCloseRules() {
+                setRulesOpen(false)
+              },
+            }),
           )
         }
 

@@ -2318,6 +2318,78 @@
 }
 .dshbs-toosmall b, .dshbs-error-card b { color: var(--dsw-alias-label-primary, #1f2328); font-size: 14px; }
 .dshbs-loading { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-secondary, #57606a); }
+/* 「规则」弹窗：与同系列其它游戏保持同一套几何与 token。 */
+.dshbs-rules-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--dsw-alias-bg-mask-1, rgba(0, 0, 0, 0.45));
+}
+.dshbs-rules-card {
+  width: min(560px, 100%);
+  max-height: 86%;
+  overflow: auto;
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-2, #f1f3f5);
+  border: 1px solid var(--dsw-alias-border-l1, #d0d7de);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  outline: none;
+}
+.dshbs-rules-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 18px;
+  background: var(--dsw-alias-bg-layer-2, #f1f3f5);
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #d0d7de);
+}
+.dshbs-rules-title { flex: 1; font-size: 15px; font-weight: 600; }
+.dshbs-rules-close {
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary, #8b949e);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 4px;
+  border-radius: 6px;
+  font-family: inherit;
+}
+.dshbs-rules-body { padding: 2px 18px 20px; }
+.dshbs-rules-body h3 {
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  margin: 20px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #d0d7de);
+}
+.dshbs-rules-body ul { margin: 8px 0; padding-left: 19px; }
+.dshbs-rules-body li {
+  font-size: 13px;
+  line-height: 21px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  margin: 6px 0;
+}
+.dshbs-rules-tip {
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+  background: var(--dsw-alias-interactive-bg-hover, #eceff2);
+  border-left: 2px solid var(--dsw-alias-brand-primary, #2f81f7);
+  border-radius: 0 7px 7px 0;
+  padding: 9px 12px;
+  margin: 10px 0;
+}
 `
 
   const MODULE_ID = '@local/dsh-game-battleship'
@@ -2484,6 +2556,101 @@
             )
           }
 
+          // Stable identity so React does not detach/re-attach the ref every render.
+          function focusRulesCard(node) {
+            if (node) node.focus()
+          }
+
+          function renderRules(onClose) {
+            function li(key, children) {
+              return h('li', { key: key }, children)
+            }
+            function b(key, text) {
+              return h('b', { key: key }, text)
+            }
+            return h(
+              'div',
+              {
+                key: 'rules',
+                className: 'dshbs-rules-mask',
+                onMouseDown: function (event) {
+                  if (event.target === event.currentTarget) onClose()
+                },
+              },
+              h(
+                'div',
+                {
+                  ref: focusRulesCard,
+                  tabIndex: -1,
+                  className: 'dshbs-rules-card',
+                  role: 'dialog',
+                  'aria-modal': 'true',
+                  'aria-label': '海战棋规则',
+                  onKeyDown: function (event) {
+                    // Modal: swallow every key so the board behind does not react.
+                    event.stopPropagation()
+                    if (event.key === 'Escape') onClose()
+                  },
+                },
+                h(
+                  'div',
+                  { className: 'dshbs-rules-head' },
+                  h('span', { className: 'dshbs-rules-title' }, '海战棋 · 规则与操作'),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'dshbs-rules-close',
+                      onClick: onClose,
+                      'aria-label': '关闭',
+                    },
+                    '×',
+                  ),
+                ),
+                h(
+                  'div',
+                  { className: 'dshbs-rules-body' },
+                  h('h3', null, '一、目标'),
+                  h(
+                    'ul',
+                    null,
+                    li('a1', ['10×10 海域，双方各有 5 艘舰船：', b('a1a', '航母 5 格、战列舰 4 格、巡洋舰 3 格、潜艇 3 格、驱逐舰 2 格'), '。']),
+                    li('a2', ['轮流炮击对方海域，', b('a2a', '先击沉对方全部 5 艘'), '的人获胜。']),
+                  ),
+                  h('h3', null, '二、布阵'),
+                  h(
+                    'ul',
+                    null,
+                    li('b1', ['点自己的海域放船；按 R 或点「旋转」换横竖；「随机布阵」一键摆完；「撤销」拿回上一艘。']),
+                    li('b2', ['「允许相邻」控制舰船能不能挨着放：关掉更接近经典规则（船与船之间必须留空），开着更容易摆。']),
+                    li('b3', ['摆完点「完成布阵」。单人模式还要先选难度：简单 / 普通 / 困难。']),
+                  ),
+                  h('h3', null, '三、开火'),
+                  h(
+                    'ul',
+                    null,
+                    li('c1', ['点对方海域的格子开炮：', b('c1a', '命中'), '显示 ✕ 并画出被打中的船身，落空显示一个圆点。']),
+                    li('c2', ['一艘船的所有格子都被命中就算击沉，右侧舰队列表会把它划掉。']),
+                    li('c3', ['沉掉对方全部 5 艘即结束，会显示胜负与命中率。']),
+                  ),
+                  h('h3', null, '四、双人同机'),
+                  h(
+                    'ul',
+                    null,
+                    li('d1', ['同一台设备轮流玩：A 先布阵 → 幕布交接 → B 布阵 → 开战。']),
+                    li('d2', ['每回合结束点「交给 玩家 X」进入交接幕布；', b('d2a', '确认之前'), '看不到对方海域，也点不动棋盘。']),
+                    li('d3', ['所以两个人可以放心把设备递来递去，不会提前看到对方的船在哪。']),
+                  ),
+                  h(
+                    'div',
+                    { className: 'dshbs-rules-tip' },
+                    '别把五艘船挤成一团：挨着摆虽然省地方，但对手一旦命中，顺着一条线追下去就能连沉好几艘。命中之后沿着直线继续追，是效率最高的打法。',
+                  ),
+                ),
+              ),
+            )
+          }
+
           function renderHeader(view, act) {
             function button(action, label, opts) {
               const options = opts || {}
@@ -2522,6 +2689,7 @@
                 )
               }
             }
+            controls.push(button('rules', '📖 规则'))
             controls.push(button('new-game', '新游戏'))
             return h(
               'div',
@@ -2754,6 +2922,7 @@
             const measuredRef = React.useRef(false)
             const [view, setView] = React.useState(null)
             const [error, setError] = React.useState(null)
+            const [rulesOpen, setRulesOpen] = React.useState(false)
             const [attempt, setAttempt] = React.useState(0)
 
             React.useEffect(function () {
@@ -2814,6 +2983,10 @@
             }
 
             function act(action, arg) {
+              if (action === 'rules') {
+                setRulesOpen(true)
+                return
+              }
               const game = gameRef.current
               if (!game) return
               try {
@@ -2948,6 +3121,13 @@
                 ),
               )
               children.push(renderStatus(view, act))
+            }
+            if (rulesOpen) {
+              children.push(
+                renderRules(function () {
+                  setRulesOpen(false)
+                }),
+              )
             }
             return h('div', rootAttrs, children)
           }

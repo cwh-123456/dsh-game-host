@@ -678,6 +678,28 @@
     '.dshklt-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;',
     'justify-content:center;gap:10px;padding:20px;text-align:center;font-size:13px;',
     'color:var(--dsw-alias-label-secondary,#57606a);background:var(--dsw-alias-bg-base,transparent);}',
+    // 「规则」弹窗：与同系列其它游戏保持同一套几何与 token。
+    '.dshklt-rules-mask{position:absolute;inset:0;z-index:40;display:none;align-items:center;justify-content:center;',
+    'padding:20px;background:var(--dsw-alias-bg-mask-1,rgba(0,0,0,.45));}',
+    '.dshklt-rules-mask--show{display:flex;}',
+    '.dshklt-rules-card{width:min(560px,100%);max-height:86%;overflow:auto;border-radius:14px;',
+    'background:var(--dsw-alias-bg-layer-2,#f1f3f5);border:1px solid var(--dsw-alias-border-l1,#d0d7de);',
+    'box-shadow:0 12px 40px rgba(0,0,0,.3);outline:none;}',
+    '.dshklt-rules-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:12px;',
+    'padding:13px 18px;background:var(--dsw-alias-bg-layer-2,#f1f3f5);',
+    'border-bottom:1px solid var(--dsw-alias-border-l1,#d0d7de);}',
+    '.dshklt-rules-title{flex:1;font-size:15px;font-weight:600;}',
+    '.dshklt-rules-close{border:0;background:transparent;color:var(--dsw-alias-label-tertiary,#8b949e);',
+    'cursor:pointer;font-size:22px;line-height:1;padding:0 4px;border-radius:6px;font-family:inherit;}',
+    '.dshklt-rules-body{padding:2px 18px 20px;}',
+    '.dshklt-rules-body h3{font-size:12.5px;letter-spacing:.04em;color:var(--dsw-alias-label-primary,#1f2328);',
+    'margin:20px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--dsw-alias-border-l1,#d0d7de);font-weight:600;}',
+    '.dshklt-rules-body ul{margin:8px 0;padding-left:19px;}',
+    '.dshklt-rules-body li{font-size:13px;line-height:21px;color:var(--dsw-alias-label-secondary,#57606a);margin:6px 0;}',
+    '.dshklt-rules-tip{font-size:12.5px;line-height:19px;color:var(--dsw-alias-label-secondary,#57606a);',
+    'background:var(--dsw-alias-interactive-bg-hover,#eceff2);',
+    'border-left:2px solid var(--dsw-alias-brand-primary,#2f81f7);',
+    'border-radius:0 7px 7px 0;padding:9px 12px;margin:10px 0;}',
   ].join('')
 
   function addClass(element, className) {
@@ -775,6 +797,12 @@
     restartButton.setAttribute('type', 'button')
     restartButton.setAttribute('data-action', 'restart')
     restartButton.setAttribute('title', '重开本关')
+    const rulesButton = makeElement(doc, 'button', 'dshklt-btn', '📖 规则')
+    rulesButton.setAttribute('type', 'button')
+    rulesButton.setAttribute('data-action', 'rules')
+    rulesButton.setAttribute('title', '查看规则与操作')
+    rulesButton.setAttribute('aria-haspopup', 'dialog')
+    actionsTop.appendChild(rulesButton)
     actionsTop.appendChild(undoButton)
     actionsTop.appendChild(restartButton)
     top.appendChild(actionsTop)
@@ -856,6 +884,103 @@
 
     const tooSmallEl = makeElement(doc, 'div', 'dshklt-too-small', '窗口太小，放大一点再玩')
     root.appendChild(tooSmallEl)
+
+    /* ----- rules dialog -----------------------------------------------------
+     * 纯 DOM 搭建：和胜利卡片同一层（绝对定位 + 遮罩），打开时盖住整块舞台。
+     * 文本里以 "!" 开头的片段渲染成 <b>，其余是普通文字。 */
+    const RULES_SECTIONS = [
+      {
+        title: '一、目标',
+        items: [
+          ['棋盘 ', '!4 列 × 5 行', '（20 格），10 个棋子 + 2 个空格。'],
+          ['挪开挡路的棋子，把 ', '!曹操（2×2）', ' 移到最下面两行的中间 —— 也就是出口 —— 就算过关。'],
+        ],
+      },
+      {
+        title: '二、棋子',
+        items: [
+          ['曹操 2×2；关羽 2×1（横）；张飞 / 赵云 / 马超 / 黄忠各 1×2（竖）；兵 ×4 各 1×1。'],
+          ['棋子形状固定，', '!不能旋转', '。'],
+        ],
+      },
+      {
+        title: '三、怎么走',
+        items: [
+          ['点棋子选中，它所有能走的落点会显示金色圆点；点圆点或目标空格就能移动。'],
+          ['一步可以滑 1 格，也可以滑 2 格；但滑 2 格的路径必须', '!全部是空格', '，不能穿过别的棋子。'],
+          ['不能重叠、不能出界。再点一次已选中的棋子可取消选中。'],
+          ['键盘：方向键移动 1 格，Shift + 方向键尝试 2 格，Esc 取消选中，Ctrl / Cmd + Z 撤销。'],
+        ],
+      },
+      {
+        title: '四、关卡与记录',
+        items: [
+          ['四个关卡：横刀立马（最少 90 步）、指挥若定（90）、齐头并进（76）、层层设防（77）。'],
+          ['「最少步数」是在本作规则下用 BFS 求出的最短解，可以当作目标。'],
+          ['状态栏显示步数、用时、本关最少步数与最佳记录（步数优先，步数相同比用时）。'],
+        ],
+      },
+      {
+        tip: '曹操要下到底，必须先给它腾出 2 格宽的直通道：先想「哪两列能让它一路直下」，再倒推该把谁挪开。兵最灵活，常用来临时占位把大棋子挤开。',
+      },
+    ]
+
+    const rulesMask = makeElement(doc, 'div', 'dshklt-rules-mask')
+    const rulesCard = makeElement(doc, 'div', 'dshklt-rules-card')
+    rulesCard.setAttribute('role', 'dialog')
+    rulesCard.setAttribute('aria-modal', 'true')
+    rulesCard.setAttribute('aria-label', '华容道规则')
+    rulesCard.setAttribute('tabindex', '-1')
+    const rulesHead = makeElement(doc, 'div', 'dshklt-rules-head')
+    rulesHead.appendChild(makeElement(doc, 'span', 'dshklt-rules-title', '华容道 · 规则与操作'))
+    const rulesCloseButton = makeElement(doc, 'button', 'dshklt-rules-close', '×')
+    rulesCloseButton.setAttribute('type', 'button')
+    rulesCloseButton.setAttribute('aria-label', '关闭')
+    rulesHead.appendChild(rulesCloseButton)
+    rulesCard.appendChild(rulesHead)
+    const rulesBody = makeElement(doc, 'div', 'dshklt-rules-body')
+    for (let sectionIndex = 0; sectionIndex < RULES_SECTIONS.length; sectionIndex += 1) {
+      const section = RULES_SECTIONS[sectionIndex]
+      if (section.tip) {
+        rulesBody.appendChild(makeElement(doc, 'div', 'dshklt-rules-tip', section.tip))
+        continue
+      }
+      rulesBody.appendChild(makeElement(doc, 'h3', '', section.title))
+      const list = makeElement(doc, 'ul')
+      for (let itemIndex = 0; itemIndex < section.items.length; itemIndex += 1) {
+        const item = section.items[itemIndex]
+        const line = makeElement(doc, 'li')
+        for (let partIndex = 0; partIndex < item.length; partIndex += 1) {
+          const part = item[partIndex]
+          // "!" 前缀表示这段文字加粗。只用 createElement（不用 createTextNode），
+          // 这样 dev/audit 里的极简假 DOM 也能渲染。
+          const bold = part.charAt(0) === '!'
+          line.appendChild(makeElement(doc, bold ? 'b' : 'span', '', bold ? part.slice(1) : part))
+        }
+        list.appendChild(line)
+      }
+      rulesBody.appendChild(list)
+    }
+    rulesCard.appendChild(rulesBody)
+    rulesMask.appendChild(rulesCard)
+    root.appendChild(rulesMask)
+
+    function openRules() {
+      addClass(rulesMask, 'dshklt-rules-mask--show')
+      try {
+        rulesCard.focus()
+      } catch (focusError) {
+        // focus is a nicety; the dialog still works without it
+      }
+    }
+
+    function closeRules() {
+      removeClass(rulesMask, 'dshklt-rules-mask--show')
+    }
+
+    function rulesOpen() {
+      return String(rulesMask.className || '').indexOf('dshklt-rules-mask--show') >= 0
+    }
 
     host.appendChild(root)
 
@@ -1334,6 +1459,8 @@
       try {
         if (destroyed || !event) return
         if (event.defaultPrevented) return
+        // The rules dialog owns the keyboard while it is open.
+        if (rulesOpen()) return
         if (state.won) return
         const key = event.key
         if (key === 'Escape') {
@@ -1418,6 +1545,25 @@
       } catch (error) {
         handleError(error)
       }
+    })
+    rulesButton.addEventListener('click', function () {
+      try {
+        openRules()
+      } catch (error) {
+        handleError(error)
+      }
+    })
+    rulesCloseButton.addEventListener('click', function () {
+      closeRules()
+    })
+    rulesMask.addEventListener('mousedown', function (event) {
+      if (event && event.target === rulesMask) closeRules()
+    })
+    rulesCard.addEventListener('keydown', function (event) {
+      // Modal: swallow every key so the board behind does not react.
+      if (!event) return
+      if (typeof event.stopPropagation === 'function') event.stopPropagation()
+      if (event.key === 'Escape') closeRules()
     })
     for (let i = 0; i < levelChips.length; i += 1) {
       (function (index) {

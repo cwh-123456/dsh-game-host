@@ -2131,6 +2131,76 @@
           whiteSpace: 'nowrap',
         },
         actions: { display: 'flex', gap: 8 },
+        // 「规则」弹窗：与同系列其它游戏保持同一套几何与 token。
+        rulesMask: {
+          position: 'absolute',
+          inset: 0,
+          zIndex: 20,
+          padding: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--dsw-alias-bg-mask-1, rgba(0,0,0,0.45))',
+        },
+        rulesCard: {
+          width: 'min(560px, 100%)',
+          maxHeight: '86%',
+          overflow: 'auto',
+          borderRadius: 14,
+          background: 'var(--dsw-alias-bg-layer-2)',
+          border: '0.5px solid var(--dsw-alias-border-l1)',
+          boxShadow: 'var(--dsw-elevation-panel, 0 12px 40px rgba(0,0,0,0.3))',
+          outline: 'none',
+        },
+        rulesHead: {
+          position: 'sticky',
+          top: 0,
+          zIndex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '13px 18px',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          borderBottom: '0.5px solid var(--dsw-alias-border-l1)',
+        },
+        rulesTitle: { flex: 1, fontSize: 15, fontWeight: 600 },
+        rulesClose: {
+          border: 0,
+          background: 'transparent',
+          color: 'var(--dsw-alias-label-tertiary)',
+          cursor: 'pointer',
+          fontSize: 22,
+          lineHeight: 1,
+          padding: '0 4px',
+          borderRadius: 6,
+          fontFamily: 'inherit',
+        },
+        rulesBody: { padding: '2px 18px 20px' },
+        rulesH3: {
+          fontSize: 12.5,
+          letterSpacing: '0.04em',
+          color: 'var(--dsw-alias-label-primary)',
+          margin: '20px 0 8px',
+          paddingBottom: 6,
+          borderBottom: '0.5px solid var(--dsw-alias-border-l1)',
+        },
+        rulesUl: { margin: '8px 0', paddingLeft: 19 },
+        rulesLi: {
+          fontSize: 13,
+          lineHeight: '21px',
+          color: 'var(--dsw-alias-label-secondary)',
+          margin: '6px 0',
+        },
+        rulesTip: {
+          fontSize: 12.5,
+          lineHeight: '19px',
+          color: 'var(--dsw-alias-label-secondary)',
+          background: 'var(--dsw-alias-interactive-bg-hover)',
+          borderLeft: '2px solid var(--dsw-alias-brand-primary, #2f81f7)',
+          borderRadius: '0 7px 7px 0',
+          padding: '9px 12px',
+          margin: '10px 0',
+        },
         stage: {
           position: 'relative',
           flex: 1,
@@ -2341,6 +2411,111 @@
         )
       }
 
+      // Stable identity so React does not detach/re-attach the ref every render.
+      function focusCard(node) {
+        if (node) node.focus()
+      }
+
+      function RulesModal(props) {
+        function li(key, children) {
+          return h('li', { key: key, style: UI.rulesLi }, children)
+        }
+        function b(key, text) {
+          return h('b', { key: key }, text)
+        }
+        return h(
+          'div',
+          {
+            style: UI.rulesMask,
+            onMouseDown: function (event) {
+              if (event.target === event.currentTarget) props.onClose()
+            },
+          },
+          h(
+            'div',
+            {
+              ref: focusCard,
+              tabIndex: -1,
+              style: UI.rulesCard,
+              role: 'dialog',
+              'aria-modal': 'true',
+              'aria-label': '复扫雷规则',
+              onKeyDown: function (event) {
+                // Modal: swallow every key so the board behind does not react.
+                event.stopPropagation()
+                if (event.key === 'Escape') props.onClose()
+              },
+            },
+            h(
+              'div',
+              { style: UI.rulesHead },
+              h('div', { style: UI.rulesTitle }, '复扫雷 · 规则与操作'),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dshcw-btn',
+                  style: UI.rulesClose,
+                  onClick: props.onClose,
+                  'aria-label': '关闭',
+                },
+                '×',
+              ),
+            ),
+            h(
+              'div',
+              { style: UI.rulesBody },
+              h('h3', { style: UI.rulesH3 }, '一、雷是「复数」'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('a1', ['棋盘上有四种雷：', b('a1a', '正实 +1'), '（红）、', b('a1b', '负实 −1'), '（蓝）、', b('a1c', '正虚 +i'), '（绿）、', b('a1d', '负虚 −i'), '（紫）。']),
+                li('a2', ['线索不是「周围有几颗雷」，而是周围 8 格所有雷', b('a2a', '求和后的模长'), '。']),
+                li('a3', ['设周围 +1 比 −1 多 a 个、+i 比 −i 多 b 个，线索就是 a² + b²；界面上显示的是开根号后的值。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '二、线索只有这 24 种值'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('b1', ['0 ~ 8、√2 √5 √10 √13 √17 √26 √29 √34 √37、2√2 3√2 4√2 5√2 2√5 2√10。']),
+                li('b2', [b('b2a', '空白 ≠ 0'), '：空白表示周围一颗雷都没有，会自动连片扩散。']),
+                li('b3', [b('b3a', '0 表示周围全是互相抵消的对'), '（+1 配 −1，或 +i 配 −i），', b('b3b', '不会扩散'), '。这是本作与普通扫雷最大的区别。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '三、插旗'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('c1', ['右键循环：空 → +1 → −1 → +i → −i → 空。旗不限量，只能插在未翻开的格子上。']),
+                li('c2', ['插了旗的格子左键翻不开，要先用右键循环回空。']),
+                li('c3', ['顶部四个色块显示每类雷「已插 / 总数」，四类雷的总数开局就公开。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '四、展开（chord）'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('d1', ['双击已翻开的数字格，或按中键展开。']),
+                li('d2', ['判定条件：周围旗数必须等于周围真实雷数，并且', b('d2a', '实部旗数 : 虚部旗数'), '等于真值的比例（或其倒数），', b('d2b', '不要求 ± 符号正确'), '。']),
+                li('d3', ['判据不足会闪红提示「判定不通过」；判据通过但周围真有雷没标出来，会踩雷判负。']),
+              ),
+              h('h3', { style: UI.rulesH3 }, '五、胜负与难度'),
+              h(
+                'ul',
+                { style: UI.rulesUl },
+                li('e1', ['翻开', b('e1a', '所有非雷格'), '即胜利（不是插对全部旗）。']),
+                li('e2', ['结束后棋盘上会复盘：绿勾 = 标对的旗，红叉 = 标错的旗，暗雷 = 没标出来的真雷。']),
+                li('e3', ['三档：初级 9×9 / 10 雷，中级 16×16 / 40 雷，高级 30×16 / 99 雷。']),
+                li('e4', ['首点必安全：第一次翻开的格子连同周围 8 格不会布雷；计时从第一次翻开开始。']),
+              ),
+              h(
+                'div',
+                { style: UI.rulesTip },
+                '看到 √2 别急着想「同类各差一个」—— 一颗 +1 加一颗 +i 也能凑出 √2。用旗去做实验（先按「+1 配 −1」标一对，看展开对不对），才是这个游戏真正的推理方式。',
+              ),
+            ),
+          ),
+        )
+      }
+
       const INITIAL_SNAPSHOT = {
         difficulty: 1,
         presetLabel: '初级 9×9 · 10 雷',
@@ -2368,6 +2543,7 @@
         const [snapshot, setSnapshot] = React.useState(INITIAL_SNAPSHOT)
         const [error, setError] = React.useState(null)
         const [attempt, setAttempt] = React.useState(0)
+        const [rulesOpen, setRulesOpen] = React.useState(false)
         const [compact, setCompact] = React.useState(false)
         const [resultClosed, setResultClosed] = React.useState(false)
 
@@ -2533,6 +2709,19 @@
               { style: UI.actions },
               h(
                 'button',
+                {
+                  type: 'button',
+                  className: 'dshcw-btn',
+                  style: UI.button,
+                  onClick: function () {
+                    setRulesOpen(true)
+                  },
+                  'aria-haspopup': 'dialog',
+                },
+                '📖 规则',
+              ),
+              h(
+                'button',
                 { type: 'button', className: 'dshcw-btn', style: UI.button, onClick: restart },
                 '重开',
               ),
@@ -2567,6 +2756,13 @@
               : snapshot.over && !resultClosed
                 ? h(ResultPanel, { snapshot, onRestart: restart, onClose: closeResult })
                 : null,
+            rulesOpen
+              ? h(RulesModal, {
+                  onClose: function () {
+                    setRulesOpen(false)
+                  },
+                })
+              : null,
           ),
         )
       }
