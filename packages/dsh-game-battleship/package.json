@@ -1,9 +1,9 @@
 {
   "name": "@local/dsh-game-battleship",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Battleship for the DSH game deck (dsh-game-host `game.stage` slot): 10x10 fleets, hidden information, hunt/target AI.",
+  "description": "Battleship for the DSH game deck (dsh-game-host `game.stage` slot): 10x10 fleets, hidden information, hunt/target AI, plus same-device two-player hot-seat.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Battleship",
-    "description": "Classic Battleship: two hidden 10x10 fleets of five ships, take turns firing, first to sink all enemy ships wins. Easy / Normal / Hard AI (hunt-target and probability density)."
+    "description": "Classic Battleship: two hidden 10x10 fleets of five ships, take turns firing, first to sink all enemy ships wins. Play solo against an Easy / Normal / Hard AI, or two players hot-seat on one device with a pass-the-device curtain."
   }
 }

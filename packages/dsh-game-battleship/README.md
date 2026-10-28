@@ -27,10 +27,28 @@ DSH 游戏页（`dsh-game-host` 的 `game.stage` chain slot）的第八个游戏
 - 先击沉对方全部 5 艘 → 胜利；提示与结算面板同时给出双方开火/命中统计。
 - 「重开」：保留双方舰队、清空射击，重新开打；「新游戏」：重新布阵（新种子）。
 
+## 模式
+
+| 模式 | 说明 |
+|---|---|
+| 单人 | 你对战 AI（默认）。难度可选简单 / 普通 / 困难 |
+| 双人 | **同一台设备轮流**：玩家 A 与玩家 B 各自布阵、轮流开火，没有 AI |
+
+双人的隐私流程（这是同机对战的关键，别跳过）：
+
+1. 玩家 A 布阵 → 点「完成布阵」→ 出现遮罩「请把设备交给 玩家 B」
+2. B 点「我是 玩家 B，继续」→ B 布阵 → 点「完成布阵」→ 再次遮罩 → A 确认
+3. 开战后，A 先手。每打一发，界面**停在 A 的视角**，状态栏出现「交给 玩家 B →」
+4. A 点交棒 → 遮罩盖住棋盘 → B 确认后才显示 B 的海域
+5. B 打一发后同样交回给 A
+
+遮罩是不透明的全覆盖层；未确认前棋盘一行都不渲染。切换模式（单人 / 双人）会立即开始一局新游戏。
+
 ## 操作
 
 ### 布阵阶段
 
+- 双人模式下先由玩家 A 布阵（只有一块棋盘），点「完成布阵」后交给 B；B 在**同一块盘面**上布自己的舰队，双方舰队互相不可见。
 - 点击**你的海域**放置当前舰船：落点 = 点击格，横向向右生长 / 纵向向下生长。
 - 「旋转 (R)」按钮或键盘 **R** 切换横竖；鼠标悬停显示绿色（可放）/红色（不可放）预览。
 - 「随机布阵」一键随机（随机结果本身也保证不重叠、不出界、默认不相邻）。
@@ -46,6 +64,7 @@ DSH 游戏页（`dsh-game-host` 的 `game.stage` chain slot）的第八个游戏
 - 状态栏显示回合提示（你的回合 / 敌方思考中）与命中/未命中/击沉短提示（约 2.6 秒后自动消失）。
 - 顶部可随时切换难度（简单 / 普通 / 困难，影响 AI 之后的选择）；「投降」在本局结束前可用（玩家回合）。
 - 「重开」「新游戏」；结束后面板可「再来一局」。
+- 双人模式下没有「难度」按钮；状态栏显示双方发数/命中，「我方海域 / 对方海域」始终以当前操作者的视角呈现。
 
 ## AI
 
@@ -64,11 +83,14 @@ DSH 游戏页（`dsh-game-host` 的 `game.stage` chain slot）的第八个游戏
   "schemaVersion": 1,
   "seed": 123,
   "rng": 456,
+  "mode": "ai | duo",
   "phase": "place | battle | over",
   "allowAdjacent": false,
   "difficulty": "easy | normal | hard",
   "orientation": "h | v",
   "placementIndex": 0,
+  "placeTurn": "player | enemy",
+  "handoff": "null | pass | curtain",
   "playerShips": [{ "key": "carrier", "cells": [0, 1, 2, 3, 4] }],
   "enemyShips": [{ "key": "carrier", "cells": [20, 21, 22, 23, 24] }],
   "playerShots": [0, 0, 1, 2, "..."],
@@ -78,6 +100,10 @@ DSH 游戏页（`dsh-game-host` 的 `game.stage` chain slot）的第八个游戏
   "endReason": null
 }
 ```
+
+- `mode`：`ai` = 单人（默认），`duo` = 同机双人。**旧存档没有这个字段时按 `ai` 读取**，不会误判重开。
+- `placeTurn`：双人布阵时正在布阵的一方；`player` = A，`enemy` = B（B 的舰队沿用 `enemyShips` 这个槽）。
+- `handoff`：`null` 正常可操作；`pass` = 刚开完火、等本回合玩家点「交给」；`curtain` = 遮罩已盖住、等下一位确认。
 
 - `playerShots`：玩家射向敌方的 100 格结果（0 未知 / 1 未命中 / 2 命中）。
 - `enemyShots`：AI 射向玩家海域的 100 格结果。
@@ -99,6 +125,7 @@ DSH 游戏页（`dsh-game-host` 的 `game.stage` chain slot）的第八个游戏
 
 ```powershell
 node packages/dsh-game-battleship/dev/test-logic.mjs     # 纯逻辑：规则/AI/存档/布局/确定性
+node packages/dsh-game-battleship/dev/test-duo.mjs       # 双人：布阵路由/交棒/视角/胜负/存档
 node packages/dsh-game-battleship/dev/test-headless.mjs  # 假 DOM 生命周期：挂载/落盘/恢复/计时器/监听器
 # 真实 Chromium 开发预览（非宿主验收）：打开 dev/preview.html
 node packages/dsh-game-battleship/dev/audit/reference-selftest.mjs  # 独立 verifier 参考模型自测
@@ -114,6 +141,8 @@ node packages/dsh-game-battleship/dev/audit/lifecycle.mjs           # 无头生�
 ## 实现要点
 
 - 单文件 `client.js`：纯逻辑 + 控制器 + React UI；React 从模块表 `require('react')` 拿，**无第三方依赖**。
+- 双人没有 AI 分支：`fireAtSide(state, side, cell)` 是唯一开火入口，射击记录永远记在**被打一方**的棋盘上（`playerShots`/`enemyShots`）；`viewSideOf(state)` 决定棋盘以谁的视角渲染，所以 A 和 B 只是同一套逻辑的两个 side。
+- 双人布阵只画一块棋盘，`computeLayout(w, h, 1)` 会按单盘给尺寸；进出布阵阶段会自动重新测量。
 - 只 `inject: ['slots']`，只注册 `game.stage`；`select` 严格判断 `gameId === 'battleship'`，宿主未装/停用时不报错。
 - DOM 渲染（非 canvas）：根元素 `width:100%; height:100%`，`ResizeObserver` 监听自身根元素 + `[data-dsh-body]`，按**实测**可用区域算两块棋盘尺寸（不读 `window.innerWidth`）；`devicePixelRatio` 变化也重算；`< 320×240` 或棋盘小于 90px 时显示「窗口太小」。
 - 棋盘/命中/未命中/击沉/预览自配色（暗色亮色都可读），工具栏/文字用 `--dsw-alias-*` token。

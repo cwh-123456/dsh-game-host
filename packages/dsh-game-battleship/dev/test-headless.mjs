@@ -735,6 +735,156 @@ test('new game resets to placement with a fresh seed', function () {
 })
 
 // ---------------------------------------------------------------------------
+// Duo mode (same-device hot-seat) driven through the controller
+// ---------------------------------------------------------------------------
+
+test('duo: mode switch starts a fresh two-player placement', function () {
+  const session = mount(makeHost())
+  const game = session.game
+  eq(session.last().mode, 'ai', 'starts solo')
+  game.setMode('duo')
+  const view = session.last()
+  eq(view.mode, 'duo', 'duo mode')
+  eq(view.phase, 'place', 'placement')
+  eq(view.ownLabel, '玩家 A', 'A places first')
+  eq(view.showOpponentPanel, false, 'only one board while placing')
+  eq(view.handoff, null, 'no curtain yet')
+  ok(view.statusText.indexOf('玩家 A') >= 0, 'status names the placer')
+  game.destroy()
+})
+
+test('duo: A places, hands over, B places, battle starts covered', function () {
+  const session = mount(makeHost())
+  const game = session.game
+  game.setMode('duo')
+  placeSafeFleet(game)
+  eq(session.last().canStart, true, 'A ready')
+  game.start()
+  let view = session.last()
+  eq(view.phase, 'place', 'still placing')
+  eq(view.handoff, 'curtain', 'curtain to B')
+  eq(view.handoffLabel, '玩家 B', 'B next')
+  eq(view.showOpponentPanel, false, 'still one board')
+  game.acknowledge()
+  eq(session.last().handoff, null, 'curtain cleared')
+  // Player B places the second fleet on the same board position.
+  placeSafeFleet(game)
+  ok(game.getState().enemyShips.length === 5, 'B fleet placed')
+  eq(game.getState().playerShips.length, 5, 'A fleet untouched')
+  game.start()
+  view = session.last()
+  eq(view.phase, 'battle', 'battle')
+  eq(view.turn, 'player', 'A first')
+  eq(view.handoff, 'curtain', 'A confirms before playing')
+  eq(view.canFire, false, 'cannot fire behind the curtain')
+  game.destroy()
+})
+
+test('duo: A fires, keeps his view, then passes the device', function () {
+  const session = mount(makeHost())
+  const game = session.game
+  game.setMode('duo')
+  placeSafeFleet(game)
+  game.start()
+  game.acknowledge()
+  placeSafeFleet(game)
+  game.start()
+  game.acknowledge()
+  const state = game.getState()
+  const target = waterCells(state, 'enemy')[0]
+  game.clickCell(target)
+  let view = session.last()
+  eq(view.handoff, 'pass', 'waiting for the hand-over')
+  eq(view.canFire, false, 'nobody fires during the pass')
+  eq(view.ownLabel, '玩家 A', 'shooter keeps his own board')
+  eq(view.enemyCells[target].shot, 'miss', 'shot visible to the shooter')
+  eq(pendingTimers().filter((entry) => entry[1].ms === 520).length, 0, 'no AI timer in duo')
+  game.pass()
+  view = session.last()
+  eq(view.handoff, 'curtain', 'curtain up')
+  eq(view.ownLabel, '玩家 B', 'perspective flipped to B')
+  eq(view.playerCells[0].ship, G.SHIPS[0].key, 'B sees his own fleet')
+  game.destroy()
+})
+
+test('duo: B fires after acknowledging, then A gets the device back', function () {
+  const session = mount(makeHost())
+  const game = session.game
+  game.setMode('duo')
+  placeSafeFleet(game)
+  game.start()
+  game.acknowledge()
+  placeSafeFleet(game)
+  game.start()
+  game.acknowledge()
+  const state = game.getState()
+  game.clickCell(waterCells(state, 'enemy')[0])
+  game.pass()
+  game.acknowledge()
+  eq(session.last().ownLabel, '玩家 B', 'B plays')
+  const target = waterCells(state, 'player')[0]
+  game.clickCell(target)
+  const view = session.last()
+  eq(view.handoff, 'pass', 'B passes back')
+  eq(view.ownLabel, '玩家 B', 'B keeps his view until he passes')
+  eq(view.stats.enemyFired, 1, 'B shot counted')
+  game.pass()
+  eq(session.last().ownLabel, '玩家 A', 'A perspective restored')
+  eq(session.last().handoff, 'curtain', 'A must confirm')
+  game.destroy()
+})
+
+test('duo: mid-pass state survives a remount', function () {
+  const host = makeHost()
+  const first = mount(host)
+  first.game.setMode('duo')
+  placeSafeFleet(first.game)
+  first.game.start()
+  first.game.acknowledge()
+  placeSafeFleet(first.game)
+  first.game.start()
+  first.game.acknowledge()
+  first.game.clickCell(waterCells(first.game.getState(), 'enemy')[0])
+  first.game.destroy()
+
+  const second = mount(host)
+  const view = second.last()
+  eq(view.mode, 'duo', 'mode restored')
+  eq(view.handoff, 'pass', 'still waiting for the hand-over')
+  eq(view.ownLabel, '玩家 A', 'shooter perspective restored')
+  eq(view.stats.playerFired, 1, 'shot restored')
+  second.game.destroy()
+})
+
+test('duo: AI never fires on its own', function () {
+  const session = mount(makeHost())
+  const game = session.game
+  game.setMode('duo')
+  placeSafeFleet(game)
+  game.start()
+  game.acknowledge()
+  placeSafeFleet(game)
+  game.start()
+  game.acknowledge()
+  game.clickCell(waterCells(game.getState(), 'enemy')[0])
+  eq(pendingTimers().filter((entry) => entry[1].ms === 520).length, 0, 'no AI move scheduled')
+  ok(pendingTimers().every((entry) => entry[1].ms !== 520), 'no pending AI timer of any kind')
+  game.destroy()
+})
+
+test('duo: switching back to solo restores the AI game', function () {
+  const session = mount(makeHost())
+  const game = session.game
+  game.setMode('duo')
+  game.setMode('ai')
+  const view = session.last()
+  eq(view.mode, 'ai', 'solo again')
+  eq(view.phase, 'place', 'fresh placement')
+  eq(view.handoff, null, 'no curtain')
+  game.destroy()
+})
+
+// ---------------------------------------------------------------------------
 // Report
 // ---------------------------------------------------------------------------
 

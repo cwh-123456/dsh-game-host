@@ -864,6 +864,42 @@
     battleFast: async function () {
       await constructMidgame()
     },
+    duoPlace: async function () {
+      await freshPlace()
+      clickAction('mode-duo')
+      await sleep(140)
+      await ensureOrientation('h')
+      click(cellEl('player', 0), 'duo place carrier')
+      await sleep(90)
+    },
+    duoCurtain: async function () {
+      await freshPlace()
+      clickAction('mode-duo')
+      await sleep(140)
+      clickAction('randomize')
+      await sleep(90)
+      clickAction('start')
+      await sleep(160)
+    },
+    duoPass: async function () {
+      await freshPlace()
+      clickAction('mode-duo')
+      await sleep(140)
+      clickAction('randomize')
+      await sleep(90)
+      clickAction('start')
+      await sleep(130)
+      clickAction('ack')
+      await sleep(110)
+      clickAction('randomize')
+      await sleep(90)
+      clickAction('start')
+      await sleep(130)
+      clickAction('ack')
+      await sleep(110)
+      click(cellEl('enemy', 4), 'duo fire')
+      await sleep(180)
+    },
     battle: async function () {
       var save = await beginBattleFromFresh()
       var enemyCells = flattenShipCells(savedShips(save, 'enemy'))
@@ -1521,6 +1557,68 @@
         assert(allSunk, '胜利后并非所有敌舰格 data-shot=sunk')
       })
 
+      /* 25-27. 双人模式（同设备轮流） */
+      await freshPlace()
+      await stepResult('25. 双人：切换后只显示一块棋盘并标注玩家 A', async function () {
+        clickAction('mode-duo')
+        await sleep(150)
+        var state = saveState()
+        assertEq(state.mode, 'duo', 'mode')
+        assertEq(gameRootEl().getAttribute('data-mode'), 'duo', 'data-mode')
+        assert(boardEl('player'), '缺少布阵棋盘')
+        assert(!boardEl('enemy'), '双人布阵阶段不应显示对方棋盘')
+        assert(/玩家 A/.test(uiText()), '界面未标注玩家 A')
+      })
+
+      await stepResult('26. 双人：A 布阵后出现交棒遮罩，确认后由 B 布阵', async function () {
+        clickAction('randomize')
+        await sleep(100)
+        clickAction('start')
+        await sleep(150)
+        assert(actionEl('ack'), 'A 完成后没有交棒遮罩')
+        assert(/玩家 B/.test(uiText()), '遮罩未提示玩家 B')
+        assertEq(saveState().placeTurn, 'enemy', 'placeTurn')
+        clickAction('ack')
+        await sleep(150)
+        assert(!actionEl('ack'), '确认后遮罩未消失')
+        assert(boardEl('player'), 'B 布阵应仍使用同一块盘面')
+        clickAction('randomize')
+        await sleep(100)
+        clickAction('start')
+        await sleep(150)
+        var state = saveState()
+        assertEq(state.phase, 'battle', '双方布阵后应开战')
+        assertEq(state.handoff, 'curtain', '开战前需要确认交棒')
+      })
+
+      await stepResult('27. 双人：开火后是「交给」而不是 AI；切到 B 视角只看到 B 的舰队', async function () {
+        assert(actionEl('ack'), '开战遮罩缺失')
+        clickAction('ack')
+        await sleep(120)
+        var before = saveState()
+        assertEq(before.turn, 'player', 'A 先手')
+        click(cellEl('enemy', 0), 'duo fire')
+        await sleep(150)
+        var afterFire = saveState()
+        assertEq(afterFire.handoff, 'pass', '开火后应等待交棒')
+        assert(actionEl('pass'), '缺少「交给」按钮')
+        assertEq(countNonZero(afterFire.enemyShots), 0, '双人模式下 AI 不应开火')
+        assert(/玩家 A/.test(uiText()), '开火后仍应是 A 的视角')
+        clickAction('pass')
+        await sleep(150)
+        assert(actionEl('ack'), '交棒后应出现遮罩')
+        assert(/玩家 B/.test(uiText()), '交棒后应显示玩家 B')
+        clickAction('ack')
+        await sleep(150)
+        var bState = saveState()
+        var bCells = flattenShipCells(savedShips(bState, 'enemy'))
+        var aCells = flattenShipCells(savedShips(bState, 'player'))
+        var bOnly = bCells.filter(function (cell) { return aCells.indexOf(cell) < 0 })
+        assert(bOnly.length > 0, '构造不出 B 独有的舰船格')
+        assert(cellEl('player', bOnly[0]).getAttribute('data-ship'), 'B 看不到自己的舰队')
+        assertEq(cellEl('player', aCells.filter(function (cell) { return bCells.indexOf(cell) < 0 })[0]).getAttribute('data-ship'), '', 'B 不应看到 A 的舰船')
+      })
+
       /* 收尾：回到干净局面，便于截图 */
       try {
         setStageSize(requestedSize.w, requestedSize.h)
@@ -1531,7 +1629,7 @@
       }
 
       /* 25. 全程无错误 */
-      await stepResult('25. 全程无 window error / unhandledrejection / console.error', async function () {
+      await stepResult('28. 全程无 window error / unhandledrejection / console.error', async function () {
         assertEq(window.__errors.length, 0, 'window error 数量：' + window.__errors.map(function (e) { return e.message }).join(' | '))
         assertEq(window.__rejections.length, 0, 'unhandledrejection 数量：' + window.__rejections.map(function (e) { return e.message }).join(' | '))
         assertEq(window.__consoleErrors.length, 0, 'console.error 数量：' + window.__consoleErrors.map(function (e) { return e.message }).join(' | '))

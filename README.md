@@ -24,7 +24,7 @@
 | `dsh-game-tetris` | 俄罗斯方块 | 10×20、SRS 旋转、消行计分 | ✅ 已验收 |
 | `dsh-game-solitaire` | 接龙 | Klondike 单机接龙 | ✅ 已验收 |
 | `dsh-game-sudoku` | 数独 | 多难度出题、笔记模式 | ✅ 已验收 |
-| `dsh-game-battleship` | 海战棋 | 10×10、5 艘、AI 三档 | ✅ 已验收 |
+| `dsh-game-battleship` | 海战棋 | 10×10、5 艘、AI 三档、**双人同机轮流** | ✅ 已验收 |
 | `dsh-game-klotski` | 华容道 | 4 关，BFS 复算最短解 | ✅ 已验收 |
 | `dsh-game-gomoku` | 五子棋 | 15×15、AI 对弈 | ✅ 已验收 |
 

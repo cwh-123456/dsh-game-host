@@ -59,6 +59,9 @@
 
   const DIFFICULTIES = ['easy', 'normal', 'hard']
   const DIFFICULTY_LABELS = { easy: '简单', normal: '普通', hard: '困难' }
+  const MODES = ['ai', 'duo']
+  const MODE_LABELS = { ai: '单人', duo: '双人' }
+  const SIDE_LABELS = { player: '玩家 A', enemy: '玩家 B' }
   const FLEET_CELLS = SHIPS.reduce(function (sum, ship) {
     return sum + ship.len
   }, 0)
@@ -302,17 +305,42 @@
     })
   }
 
-  function newGameState(seed) {
+  function otherSide(side) {
+    return side === 'enemy' ? 'player' : 'enemy'
+  }
+
+  /**
+   * Which fleet the current placement step writes into. In solo mode that is
+   * always the human fleet (`playerShips`); in duo mode the second player places
+   * into `enemyShips` after the hand-off curtain.
+   */
+  function placingSide(state) {
+    return state && state.mode === 'duo' && state.placeTurn === 'enemy' ? 'enemy' : 'player'
+  }
+
+  function placedShips(state) {
+    return shipsForSide(state, placingSide(state))
+  }
+
+  function isDuo(state) {
+    return !!state && state.mode === 'duo'
+  }
+
+  function newGameState(seed, mode) {
     const value = isUint32(seed) ? seed : randomSeed()
+    const chosen = MODES.indexOf(mode) >= 0 ? mode : 'ai'
     return {
       schemaVersion: SCHEMA_VERSION,
       seed: value,
       rng: value,
+      mode: chosen,
       phase: 'place',
       allowAdjacent: false,
       difficulty: 'normal',
       orientation: 'h',
       placementIndex: 0,
+      placeTurn: 'player',
+      handoff: null,
       playerShips: [],
       enemyShips: [],
       playerShots: emptyShots(),
@@ -325,8 +353,9 @@
 
   function currentShipDef(state) {
     if (!state || state.phase !== 'place') return null
-    if (state.placementIndex < 0 || state.placementIndex >= SHIPS.length) return null
-    return SHIPS[state.placementIndex]
+    const fleet = placedShips(state)
+    if (fleet.length >= SHIPS.length) return null
+    return SHIPS[fleet.length]
   }
 
   function canPlaceCurrent(state, origin, orientation) {
@@ -336,7 +365,7 @@
     const horizontal = (orientation || state.orientation) === 'h'
     const cells = shipCells(origin, def.len, horizontal)
     if (!cells) return { ok: false, reason: 'out', cells: null }
-    const check = isValidPlacement(state.playerShips, cells, state.allowAdjacent)
+    const check = isValidPlacement(placedShips(state), cells, state.allowAdjacent)
     return { ok: check.ok, reason: check.reason, cells: cells }
   }
 
@@ -345,16 +374,19 @@
     const result = canPlaceCurrent(state, origin, orientation)
     if (!result.ok) return result
     const def = currentShipDef(state)
-    state.playerShips.push({ key: def.key, cells: result.cells.slice() })
-    state.placementIndex = state.playerShips.length
-    return { ok: true, reason: null, cells: result.cells, shipKey: def.key }
+    const fleet = placedShips(state)
+    fleet.push({ key: def.key, cells: result.cells.slice() })
+    state.placementIndex = fleet.length
+    return { ok: true, reason: null, cells: result.cells, shipKey: def.key, side: placingSide(state) }
   }
 
   function removeLastShip(state) {
-    if (!state || state.phase !== 'place' || state.playerShips.length === 0) return { ok: false, reason: 'empty' }
-    const removed = state.playerShips.pop()
-    state.placementIndex = state.playerShips.length
-    return { ok: true, shipKey: removed.key }
+    if (!state || state.phase !== 'place') return { ok: false, reason: 'phase' }
+    const fleet = placedShips(state)
+    if (fleet.length === 0) return { ok: false, reason: 'empty' }
+    const removed = fleet.pop()
+    state.placementIndex = fleet.length
+    return { ok: true, shipKey: removed.key, side: placingSide(state) }
   }
 
   function randomizePlayerFleet(state) {
@@ -366,9 +398,11 @@
       }, state.allowAdjacent)
     }
     if (!fleet) return { ok: false, reason: 'fleet' }
-    state.playerShips = fleet
+    const target = placedShips(state)
+    target.length = 0
+    for (let i = 0; i < fleet.length; i += 1) target.push(fleet[i])
     state.placementIndex = SHIPS.length
-    return { ok: true }
+    return { ok: true, side: placingSide(state) }
   }
 
   function randomFleet(rng, allowAdjacent) {
@@ -416,7 +450,9 @@
   function toggleAdjacent(state) {
     if (!state || state.phase !== 'place') return { ok: false, reason: 'phase' }
     if (state.allowAdjacent === true) {
-      if (!fleetSubsetOk(state.playerShips, false)) return { ok: false, reason: 'adjacent' }
+      if (!fleetSubsetOk(state.playerShips, false) || !fleetSubsetOk(state.enemyShips, false)) {
+        return { ok: false, reason: 'adjacent' }
+      }
       state.allowAdjacent = false
     } else {
       state.allowAdjacent = true
@@ -424,9 +460,32 @@
     return { ok: true, allowAdjacent: state.allowAdjacent }
   }
 
+  /**
+   * Placement step finished for the fleet currently being placed.
+   * Solo: generates the AI fleet and starts the battle (unchanged).
+   * Duo: player A finishes → hand the device to player B; player B finishes →
+   * battle starts. The opponent fleet is never generated for the player.
+   */
   function startBattle(state) {
     if (!state || state.phase !== 'place') return { ok: false, reason: 'phase' }
-    if (!fleetCompleteOk(state.playerShips, state.allowAdjacent)) return { ok: false, reason: 'fleet' }
+    const fleet = placedShips(state)
+    if (!fleetCompleteOk(fleet, state.allowAdjacent)) return { ok: false, reason: 'fleet' }
+    if (isDuo(state)) {
+      if (placingSide(state) === 'player') {
+        state.placeTurn = 'enemy'
+        state.placementIndex = state.enemyShips.length
+        state.handoff = 'curtain'
+        return { ok: true, next: 'place', side: 'enemy' }
+      }
+      state.playerShots = emptyShots()
+      state.enemyShots = emptyShots()
+      state.phase = 'battle'
+      state.turn = 'player'
+      state.handoff = 'curtain'
+      state.winner = null
+      state.endReason = null
+      return { ok: true, next: 'battle', side: 'player' }
+    }
     let enemy = null
     for (let attempt = 0; attempt < 80 && !enemy; attempt += 1) {
       enemy = randomFleet(function () {
@@ -441,7 +500,7 @@
     state.turn = 'player'
     state.winner = null
     state.endReason = null
-    return { ok: true }
+    return { ok: true, next: 'battle', side: 'player' }
   }
 
   function restartBattle(state) {
@@ -453,6 +512,7 @@
     state.enemyShots = emptyShots()
     state.phase = 'battle'
     state.turn = 'player'
+    state.handoff = isDuo(state) ? 'curtain' : null
     state.winner = null
     state.endReason = null
     return { ok: true }
@@ -460,11 +520,40 @@
 
   function surrender(state) {
     if (!state || state.phase !== 'battle') return { ok: false, reason: 'phase' }
-    if (state.turn === 'enemy') return { ok: false, reason: 'turn' }
+    if (!isDuo(state) && state.turn === 'enemy') return { ok: false, reason: 'turn' }
+    const side = isDuo(state) ? state.turn : 'player'
     state.phase = 'over'
-    state.winner = 'enemy'
+    state.winner = otherSide(side)
     state.endReason = 'surrender'
+    state.handoff = null
+    return { ok: true, side: side }
+  }
+
+  /**
+   * Duo flow: after a shot the board must stay on the shooter's view until the
+   * device is physically handed over, otherwise the next player's fleet would
+   * pop into view. `'pass'` = shooter is still looking; `'curtain'` = the board
+   * is covered and the next player must confirm.
+   */
+  function passDevice(state) {
+    if (!isDuo(state) || state.handoff !== 'pass') return { ok: false, reason: 'phase' }
+    state.handoff = 'curtain'
     return { ok: true }
+  }
+
+  /** The next player confirms they hold the device; the board comes back. */
+  function acknowledgeHandoff(state) {
+    if (!isDuo(state) || state.handoff !== 'curtain') return { ok: false, reason: 'phase' }
+    state.handoff = null
+    return { ok: true }
+  }
+
+  /** Whose eyes the boards are rendered through (solo always reads the human). */
+  function viewSideOf(state) {
+    if (!isDuo(state)) return 'player'
+    if (state.phase === 'place') return placingSide(state)
+    if (state.handoff === 'pass') return otherSide(state.turn)
+    return state.turn
   }
 
   // ---------------------------------------------------------------------------
@@ -530,26 +619,44 @@
     return count
   }
 
-  function fireAt(state, cell) {
+  /**
+   * One shot from `side` at the opponent's fleet. `shotsAtSide(target)` holds
+   * the marks that shooter left on the target board, so the same routine serves
+   * the human, the AI and the second local player.
+   */
+  function fireAtSide(state, side, cell) {
     if (!state || state.phase !== 'battle') return { ok: false, reason: 'phase' }
-    if (state.turn !== 'player') return { ok: false, reason: 'turn' }
+    // While the device is being handed over nobody may fire (duo only).
+    if (state.handoff) return { ok: false, reason: 'turn' }
+    if (state.turn !== side) return { ok: false, reason: 'turn' }
     if (!Number.isInteger(cell) || cell < 0 || cell >= CELLS) return { ok: false, reason: 'range' }
-    if (state.playerShots[cell] !== 0) return { ok: false, reason: 'fired' }
-    const ship = findShipAt(state.enemyShips, cell)
-    state.playerShots[cell] = ship ? 2 : 1
+    const target = otherSide(side)
+    const shots = shotsAtSide(state, target)
+    if (shots[cell] !== 0) return { ok: false, reason: 'fired' }
+    const targetShips = shipsForSide(state, target)
+    const ship = findShipAt(targetShips, cell)
+    shots[cell] = ship ? 2 : 1
     let result = ship ? 'hit' : 'miss'
     let shipKey = ship ? ship.key : null
-    if (ship && isShipSunk(state.playerShots, ship)) {
+    if (ship && isShipSunk(shots, ship)) {
       result = 'sunk'
-      if (allSunk(state.playerShots, state.enemyShips)) {
+      if (allSunk(shots, targetShips)) {
         result = 'win'
         state.phase = 'over'
-        state.winner = 'player'
+        state.winner = side
         state.endReason = 'sunk'
+        state.handoff = null
       }
     }
-    if (state.phase === 'battle') state.turn = 'enemy'
-    return { ok: true, reason: null, result: result, shipKey: shipKey, cell: cell }
+      if (state.phase === 'battle') {
+        state.turn = target
+        if (isDuo(state)) state.handoff = 'pass'
+      }
+    return { ok: true, reason: null, result: result, shipKey: shipKey, cell: cell, side: side }
+  }
+
+  function fireAt(state, cell) {
+    return fireAtSide(state, 'player', cell)
   }
 
   // ---------------------------------------------------------------------------
@@ -704,21 +811,7 @@
     if (state.turn !== 'enemy') return { ok: false, reason: 'turn' }
     const cell = aiChooseCell(state)
     if (cell === null) return { ok: false, reason: 'nomove' }
-    const ship = findShipAt(state.playerShips, cell)
-    state.enemyShots[cell] = ship ? 2 : 1
-    let result = ship ? 'hit' : 'miss'
-    let shipKey = ship ? ship.key : null
-    if (ship && isShipSunk(state.enemyShots, ship)) {
-      result = 'sunk'
-      if (allSunk(state.enemyShots, state.playerShips)) {
-        result = 'win'
-        state.phase = 'over'
-        state.winner = 'enemy'
-        state.endReason = 'sunk'
-      }
-    }
-    if (state.phase === 'battle') state.turn = 'player'
-    return { ok: true, reason: null, result: result, shipKey: shipKey, cell: cell }
+    return fireAtSide(state, 'enemy', cell)
   }
 
   function aiTurn(state) {
@@ -794,6 +887,16 @@
       if (raw.schemaVersion !== SCHEMA_VERSION) return null
       const phase = raw.phase
       if (phase !== 'place' && phase !== 'battle' && phase !== 'over') return null
+      // `mode` was added after v1 shipped: an older save without it is a solo game.
+      const mode = raw.mode === undefined ? 'ai' : raw.mode
+      if (mode !== 'ai' && mode !== 'duo') return null
+      const placeTurn = raw.placeTurn === undefined ? 'player' : raw.placeTurn
+      if (placeTurn !== 'player' && placeTurn !== 'enemy') return null
+      if (mode === 'ai' && placeTurn !== 'player') return null
+      const handoff = raw.handoff === undefined || raw.handoff === null ? null : raw.handoff
+      if (handoff !== null && handoff !== 'pass' && handoff !== 'curtain') return null
+      if (mode === 'ai' && handoff !== null) return null
+      if (handoff === 'pass' && phase !== 'battle') return null
       if (raw.allowAdjacent !== true && raw.allowAdjacent !== false) return null
       const allowAdjacent = raw.allowAdjacent === true
       if (DIFFICULTIES.indexOf(raw.difficulty) < 0) return null
@@ -803,7 +906,8 @@
       if (!orientation) return null
       const playerShips = sanitizeFleet(raw.playerShips, allowAdjacent, phase === 'place' ? 'partial' : 'full')
       if (!playerShips) return null
-      const enemyShips = sanitizeFleet(raw.enemyShips, allowAdjacent, phase === 'place' ? 'empty' : 'full')
+      const enemyFleetMode = phase === 'place' ? (mode === 'duo' ? 'partial' : 'empty') : 'full'
+      const enemyShips = sanitizeFleet(raw.enemyShips, allowAdjacent, enemyFleetMode)
       if (!enemyShips) return null
       const playerShots = sanitizeShots(raw.playerShots)
       if (!playerShots) return null
@@ -821,8 +925,14 @@
       const placementIndex = raw.placementIndex
       let endReason = raw.endReason === 'sunk' || raw.endReason === 'surrender' ? raw.endReason : null
       if (phase === 'place') {
-        if (placementIndex !== playerShips.length) return null
-        if (enemyShips.length !== 0) return null
+        const placeFleet = mode === 'duo' && placeTurn === 'enemy' ? enemyShips : playerShips
+        if (placementIndex !== placeFleet.length) return null
+        if (mode === 'duo' && placeTurn === 'enemy') {
+          // Player B places second: player A's fleet is already complete.
+          if (playerShips.length !== SHIPS.length) return null
+        } else if (enemyShips.length !== 0) {
+          return null
+        }
         if (winner !== null) return null
         if (turn !== 'player') return null
         if (countShotCells(playerShots) !== 0 || countShotCells(enemyShots) !== 0) return null
@@ -846,10 +956,17 @@
       } else if (phase === 'over') {
         if (winner === null) return null
         if (winner === 'player') {
-          if (!enemyFleetSunk) return null
-          if (playerFleetSunk) return null
-          if (playerFired !== enemyFired + 1) return null
-          if (endReason !== 'sunk') return null
+          if (enemyFleetSunk) {
+            if (playerFleetSunk) return null
+            if (playerFired !== enemyFired + 1) return null
+            if (endReason !== 'sunk') return null
+          } else {
+            // Only duo games can end with the human/A side winning by
+            // resignation: B surrenders while A's fleet is still afloat.
+            if (mode !== 'duo') return null
+            if (endReason !== 'surrender') return null
+            if (playerFired !== enemyFired) return null
+          }
         } else {
           if (playerFleetSunk) {
             if (endReason !== 'sunk') return null
@@ -863,11 +980,14 @@
         schemaVersion: SCHEMA_VERSION,
         seed: raw.seed,
         rng: raw.rng,
+        mode: mode,
         phase: phase,
         allowAdjacent: allowAdjacent,
         difficulty: difficulty,
         orientation: orientation,
         placementIndex: placementIndex,
+        placeTurn: placeTurn,
+        handoff: handoff,
         playerShips: playerShips,
         enemyShips: enemyShips,
         playerShots: playerShots,
@@ -886,11 +1006,14 @@
       schemaVersion: SCHEMA_VERSION,
       seed: state.seed,
       rng: state.rng,
+      mode: state.mode === 'duo' ? 'duo' : 'ai',
       phase: state.phase,
       allowAdjacent: state.allowAdjacent === true,
       difficulty: state.difficulty,
       orientation: state.orientation,
       placementIndex: state.placementIndex,
+      placeTurn: state.placeTurn === 'enemy' ? 'enemy' : 'player',
+      handoff: state.handoff === 'pass' || state.handoff === 'curtain' ? state.handoff : null,
       playerShips: cloneShips(state.playerShips),
       enemyShips: cloneShips(state.enemyShips),
       playerShots: state.playerShots.slice(),
@@ -931,14 +1054,18 @@
     // full-name chips otherwise. Keep this conservative so the measured panel
     // never overflows the board area.
     const compact = boardPx < 190
-    const chipWidth = compact ? 24 : 70
+    // Full-name chips ("航空母舰 · 5") need ~84px; compact ones only the number.
+    const chipWidth = compact ? 26 : 84
     const available = Math.max(1, boardPx + PANEL_PAD * 2)
     const perRow = Math.max(1, Math.floor(available / chipWidth))
     const rows = Math.ceil(SHIPS.length / perRow)
     return rows * 18 + (rows - 1) * 4 + 2
   }
 
-  function computeLayout(width, height) {
+  function computeLayout(width, height, panels) {
+    // `panels: 1` is used while a duo player places a fleet: only that board is
+    // on screen, so it may use the whole stage instead of half of it.
+    const panelCount = panels === 1 ? 1 : 2
     let w = 0
     let h = 0
     try {
@@ -964,7 +1091,11 @@
     let board = 0
     for (let pass = 0; pass < 4; pass += 1) {
       let next = 0
-      if (sideBySide) {
+      if (panelCount === 1) {
+        const widthLimit = w - ROOT_PAD * 2 - 2 * PANEL_PAD
+        const heightLimit = h - ROOT_PAD * 2 - PANEL_HEADER_H - fleetH - 2 * PANEL_PAD - 10
+        next = Math.min(widthLimit, heightLimit)
+      } else if (sideBySide) {
         const widthLimit = (w - ROOT_PAD * 2 - BOARD_GAP - 4 * PANEL_PAD) / 2
         const heightLimit = h - ROOT_PAD * 2 - PANEL_HEADER_H - fleetH - 2 * PANEL_PAD - 10
         next = Math.min(widthLimit, heightLimit)
@@ -1019,6 +1150,7 @@
       freshStart = true
     }
     let layoutCache = computeLayout(0, 0)
+    let lastPanelCount = -1
     let viewCache = null
     let message = ''
     let messageTone = 'info'
@@ -1064,6 +1196,10 @@
       }
     }
 
+    function panelsForLayout() {
+      return isDuo(state) && state.phase === 'place' ? 1 : 2
+    }
+
     function measure() {
       const rootRect = rectOf(host)
       rootSize = rootRect
@@ -1084,7 +1220,7 @@
         usedFallback = true
         bodyHeight = Math.max(0, rootRect.height - estimateChromeHeight(rootRect.width))
       }
-      const layout = computeLayout(bodyWidth, bodyHeight)
+      const layout = computeLayout(bodyWidth, bodyHeight, panelsForLayout())
       if (rootRect.width < MIN_WIDTH || rootRect.height < MIN_HEIGHT) layout.tooSmall = true
       layout.usedFallback = usedFallback
       layout.canRefine = false
@@ -1096,6 +1232,7 @@
         const potential = computeLayout(
           rootRect.width,
           Math.max(0, rootRect.height - estimateChromeHeight(rootRect.width)),
+          panelsForLayout(),
         )
         if (!potential.tooSmall) layout.canRefine = true
       }
@@ -1164,33 +1301,61 @@
       }
     }
 
+    function sideLabel(side) {
+      return SIDE_LABELS[side] || SIDE_LABELS.player
+    }
+
     function statusText(layout) {
       if (layout.tooSmall) return '窗口太小'
+      const duo = isDuo(state)
       if (state.phase === 'place') {
+        const side = placingSide(state)
+        if (duo && state.handoff) return '请把设备交给 ' + sideLabel(side) + '，准备布阵'
+        const who = duo ? sideLabel(side) + ' ' : ''
         const def = currentShipDef(state)
         if (def) {
-          return '布阵：放置「' + def.name + '」（' + def.len + ' 格）· 点击海域放置，R 键旋转'
+          return who + '布阵：放置「' + def.name + '」（' + def.len + ' 格）· 点击海域放置，R 键旋转'
         }
-        return '布阵完成，点「开始」开战'
+        return duo ? who + '布阵完成，点「完成布阵」' : '布阵完成，点「开始」开战'
       }
       if (state.phase === 'over') {
+        if (duo) {
+          if (state.endReason === 'surrender') return sideLabel(state.winner) + ' 获胜（对方投降）'
+          return sideLabel(state.winner) + ' 获胜：对方 5 艘舰船全部被击沉'
+        }
         if (state.winner === 'player') return '胜利！敌方 5 艘舰船全部被击沉'
         if (state.endReason === 'surrender') return '你已投降，本局结束'
         return '失败：你的舰队被全部击沉'
+      }
+      if (duo) {
+        if (state.handoff === 'pass') {
+          return sideLabel(otherSide(state.turn)) + ' 本回合结束，点「交给 ' + sideLabel(state.turn) + '」'
+        }
+        if (state.handoff === 'curtain') return '请把设备交给 ' + sideLabel(state.turn) + '，轮到其开火'
+        return sideLabel(state.turn) + ' 的回合：点击对方海域开火'
       }
       return state.turn === 'player' ? '你的回合：点击敌方海域开火' : '敌方思考中…'
     }
 
     function buildView() {
       const layout = layoutCache
-      const playerSunk = sunkKeys(state, 'player')
-      const enemySunk = sunkKeys(state, 'enemy')
-      const playerSunkSet = new Set(playerSunk)
-      const enemySunkSet = new Set(enemySunk)
+      const duo = isDuo(state)
+      const placement = state.phase === 'place'
+      // Whose eyes are we looking through? Solo: always the human's (the AI turn
+      // must not flip the boards). Duo: the fleet being placed, then whoever's
+      // turn it is — the other fleet stays hidden behind the hand-off curtain.
+      const ownSide = viewSideOf(state)
+      const oppSide = otherSide(ownSide)
+      const ownShips = shipsForSide(state, ownSide)
+      const oppShips = shipsForSide(state, oppSide)
+      const ownShots = shotsAtSide(state, ownSide)
+      const oppShots = shotsAtSide(state, oppSide)
+      const ownSunkSet = new Set(sunkKeys(state, ownSide))
+      const oppSunkSet = new Set(sunkKeys(state, oppSide))
 
       let previewCells = []
       let previewValid = false
-      if (state.phase === 'place' && hover !== null && Number.isInteger(hover)) {
+      if (placement && hover !== null && Number.isInteger(hover)) {
         const preview = canPlaceCurrent(state, hover, state.orientation)
         if (preview.cells) previewCells = preview.cells
         previewValid = preview.ok
@@ -1199,9 +1364,9 @@
 
       const playerCells = []
       for (let cell = 0; cell < CELLS; cell += 1) {
-        const ship = findShipAt(state.playerShips, cell)
-        const shot = state.enemyShots[cell]
-        const sunk = ship ? playerSunkSet.has(ship.key) : false
+        const ship = findShipAt(ownShips, cell)
+        const shot = ownShots[cell]
+        const sunk = ship ? ownSunkSet.has(ship.key) : false
         playerCells.push({
           cell: cell,
           row: cellRow(cell),
@@ -1213,15 +1378,15 @@
           shot: sunk ? 'sunk' : shot === 2 ? 'hit' : shot === 1 ? 'miss' : 'none',
           preview: previewSet.has(cell),
           previewValid: previewValid,
-          last: lastShot !== null && lastShot.side === 'player' && lastShot.cell === cell,
+          last: lastShot !== null && lastShot.side === oppSide && lastShot.cell === cell,
         })
       }
 
       const enemyCells = []
       for (let cell = 0; cell < CELLS; cell += 1) {
-        const ship = findShipAt(state.enemyShips, cell)
-        const shot = state.playerShots[cell]
-        const sunk = !!(ship && shot === 2 && isShipSunk(state.playerShots, ship))
+        const ship = findShipAt(oppShips, cell)
+        const shot = oppShots[cell]
+        const sunk = !!(ship && shot === 2 && oppSunkSet.has(ship.key))
         enemyCells.push({
           cell: cell,
           row: cellRow(cell),
@@ -1233,13 +1398,14 @@
           shot: sunk ? 'sunk' : shot === 2 ? 'hit' : shot === 1 ? 'miss' : 'none',
           preview: false,
           previewValid: false,
-          last: lastShot !== null && lastShot.side === 'enemy' && lastShot.cell === cell,
+          last: lastShot !== null && lastShot.side === ownSide && lastShot.cell === cell,
         })
       }
 
       const current = currentShipDef(state)
+      const fleet = placedShips(state)
       const shipDock = []
-      if (state.phase === 'place') {
+      if (placement) {
         for (let i = 0; i < SHIPS.length; i += 1) {
           const def = SHIPS[i]
           shipDock.push({
@@ -1247,15 +1413,18 @@
             name: def.name,
             short: def.short,
             len: def.len,
-            placed: i < state.playerShips.length,
-            current: i === state.placementIndex,
+            placed: i < fleet.length,
+            current: i === fleet.length,
             sunk: false,
           })
         }
       }
       const playerShotsFired = countShotCells(state.playerShots)
       const enemyShotsFired = countShotCells(state.enemyShots)
-      const aiThinking = state.phase === 'battle' && state.turn === 'enemy'
+      const aiThinking = !duo && state.phase === 'battle' && state.turn === 'enemy'
+      const handoffSide = state.handoff === 'curtain'
+        ? (placement ? placingSide(state) : state.turn)
+        : null
       return {
         width: layout.width,
         height: layout.height,
@@ -1264,6 +1433,8 @@
         dpr: getDpr(),
         tooSmall: layout.tooSmall,
         layout: layout,
+        mode: duo ? 'duo' : 'ai',
+        duo: duo,
         phase: state.phase,
         turn: state.turn,
         winner: state.winner,
@@ -1271,20 +1442,30 @@
         difficulty: state.difficulty,
         allowAdjacent: state.allowAdjacent === true,
         orientation: state.orientation,
-        playerShips: state.playerShips.map(function (ship) {
-          return shipView(ship, state.enemyShots)
+        handoff: state.handoff || null,
+        handoffSide: handoffSide,
+        handoffLabel: handoffSide ? sideLabel(handoffSide) : '',
+        ownSide: ownSide,
+        oppSide: oppSide,
+        ownLabel: sideLabel(ownSide),
+        oppLabel: sideLabel(oppSide),
+        nextLabel: sideLabel(state.turn),
+        showOpponentPanel: !(duo && placement),
+        playerShips: ownShips.map(function (ship) {
+          return shipView(ship, ownShots)
         }),
         shipDock: shipDock,
-        enemyShips: state.enemyShips.map(function (ship) {
-          return shipView(ship, state.playerShots)
+        enemyShips: oppShips.map(function (ship) {
+          return shipView(ship, oppShots)
         }),
         playerCells: playerCells,
         enemyCells: enemyCells,
         currentShip: current ? { key: current.key, name: current.name, len: current.len } : null,
-        placedCount: state.playerShips.length,
+        placedCount: fleet.length,
         totalShips: SHIPS.length,
-        canStart: state.phase === 'place' && state.playerShips.length === SHIPS.length,
-        canFire: state.phase === 'battle' && state.turn === 'player' && state.winner === null,
+        canStart: placement && fleet.length === SHIPS.length && !state.handoff,
+        canFire: state.phase === 'battle' && state.winner === null && !state.handoff &&
+          (duo || state.turn === 'player'),
         aiThinking: aiThinking,
         hover: hover,
         previewValid: previewValid,
@@ -1296,10 +1477,10 @@
           enemyFired: enemyShotsFired,
           playerHits: countHitCells(state.playerShots),
           enemyHits: countHitCells(state.enemyShots),
-          enemySunk: enemySunk.length,
-          playerSunk: playerSunk.length,
-          enemyRemaining: SHIPS.length - enemySunk.length,
-          playerRemaining: SHIPS.length - playerSunk.length,
+          enemySunk: oppSunkSet.size,
+          playerSunk: ownSunkSet.size,
+          enemyRemaining: SHIPS.length - oppSunkSet.size,
+          playerRemaining: SHIPS.length - ownSunkSet.size,
         },
         statusText: statusText(layout),
       }
@@ -1308,6 +1489,13 @@
     function emit() {
       if (disposed) return
       try {
+        // Duo placement shows a single board, so the stage can hold a bigger
+        // one; re-measure whenever that changes (enter/leave placement, mode).
+        const panels = panelsForLayout()
+        if (panels !== lastPanelCount) {
+          lastPanelCount = panels
+          layoutCache = measure()
+        }
         viewCache = buildView()
         onState(viewCache)
       } catch (error) {
@@ -1356,6 +1544,14 @@
       return { text: '敌方未命中', tone: 'info' }
     }
 
+    function duoShotMessage(result, shipKey) {
+      const name = shipKey ? pluralShipName(shipKey) : ''
+      if (result === 'win') return { text: '击沉「' + name + '」！对方舰队全灭，你赢了！', tone: 'good' }
+      if (result === 'sunk') return { text: '击沉「' + name + '」！', tone: 'good' }
+      if (result === 'hit') return { text: '命中！', tone: 'good' }
+      return { text: '未命中…', tone: 'info' }
+    }
+
     function clearAITimer() {
       if (aiTimer) {
         clearTimeout(aiTimer)
@@ -1365,7 +1561,8 @@
 
     function scheduleAI() {
       clearAITimer()
-      if (disposed || state.phase !== 'battle' || state.turn !== 'enemy') return
+      if (disposed || isDuo(state)) return
+      if (state.phase !== 'battle' || state.turn !== 'enemy') return
       if (isHidden()) {
         aiPending = true
         return
@@ -1393,7 +1590,7 @@
         emit()
         return
       }
-      lastShot = { cell: result.cell, side: 'player' }
+      lastShot = { cell: result.cell, side: 'enemy' }
       const rendered = shotMessage(result.result, result.shipKey, 'enemy')
       setMessage(rendered.text, rendered.tone)
       persist()
@@ -1459,20 +1656,20 @@
     }
 
     function randomize() {
-      if (state.phase !== 'place') return
+      if (state.phase !== 'place' || state.handoff) return
       const result = randomizePlayerFleet(state)
       if (!result.ok) {
         setMessage(reasonText(result.reason), 'warn')
         emit()
         return
       }
-      setMessage('已随机布阵，点「开始」开战', 'info')
+      setMessage(isDuo(state) ? '已随机布阵，点「完成布阵」' : '已随机布阵，点「开始」开战', 'info')
       persist()
       emit()
     }
 
     function undoPlacement() {
-      if (state.phase !== 'place') return
+      if (state.phase !== 'place' || state.handoff) return
       const result = removeLastShip(state)
       if (!result.ok) {
         setMessage(reasonText(result.reason), 'info')
@@ -1486,6 +1683,7 @@
 
     function start() {
       if (state.phase !== 'place') return
+      if (state.handoff) return
       const result = startBattle(state)
       if (!result.ok) {
         setMessage('无法开始：' + reasonText(result.reason), 'warn')
@@ -1493,34 +1691,69 @@
         return
       }
       lastShot = null
-      setMessage('开战！你先手', 'good')
+      if (isDuo(state)) {
+        if (result.next === 'place') {
+          setMessage(sideLabel('player') + ' 布阵完成', 'info')
+        } else {
+          setMessage('双方布阵完成，' + sideLabel('player') + ' 先手', 'good')
+        }
+      } else {
+        setMessage('开战！你先手', 'good')
+      }
       persist()
       emit()
     }
 
     function fire(cell) {
       if (state.phase !== 'battle') return
-      if (state.turn !== 'player') return
-      const result = fireAt(state, cell)
+      if (state.handoff) return
+      const side = isDuo(state) ? state.turn : 'player'
+      if (state.turn !== side) return
+      const result = fireAtSide(state, side, cell)
       if (!result.ok) {
         if (result.reason === 'fired') setMessage('这一格已经打过了', 'warn')
         else if (result.reason !== 'turn' && result.reason !== 'phase') setMessage(reasonText(result.reason), 'warn')
         emit()
         return
       }
-      lastShot = { cell: result.cell, side: 'enemy' }
-      const rendered = shotMessage(result.result, result.shipKey, 'player')
+      lastShot = { cell: result.cell, side: side }
+      const rendered = isDuo(state)
+        ? duoShotMessage(result.result, result.shipKey)
+        : shotMessage(result.result, result.shipKey, 'player')
       setMessage(rendered.text, rendered.tone)
       persist()
-      if (state.phase === 'battle' && state.turn === 'enemy') {
+      if (!isDuo(state) && state.phase === 'battle' && state.turn === 'enemy') {
         scheduleAI()
       }
       emit()
     }
 
+    /** Duo: the shooter keeps the board until they hand the device over. */
+    function passTurn() {
+      const result = passDevice(state)
+      if (!result.ok) return
+      lastShot = null
+      setMessage('请把设备交给 ' + sideLabel(state.turn), 'info')
+      persist()
+      emit()
+    }
+
+    /** Duo: the next player lifted the curtain. */
+    function acknowledge() {
+      const result = acknowledgeHandoff(state)
+      if (!result.ok) return
+      const side = state.phase === 'place' ? placingSide(state) : state.turn
+      setMessage(sideLabel(side) + ' 继续', 'info')
+      persist()
+      emit()
+    }
+
     function newGame() {
       clearAITimer()
-      state = newGameState(randomSeed())
+      const previous = state
+      state = newGameState(randomSeed(), previous.mode)
+      state.allowAdjacent = previous.allowAdjacent === true
+      state.difficulty = previous.difficulty
       hover = null
       lastShot = null
       message = ''
@@ -1529,7 +1762,7 @@
         clearTimeout(messageTimer)
         messageTimer = null
       }
-      setMessage('新游戏：先布阵', 'info')
+      setMessage(isDuo(state) ? '新游戏：' + sideLabel('player') + ' 先布阵' : '新游戏：先布阵', 'info')
       persist()
       emit()
     }
@@ -1539,7 +1772,10 @@
       if (!result.ok) return
       clearAITimer()
       lastShot = null
-      setMessage('已重开本局（舰队不变，清空射击）', 'info')
+      setMessage(
+        isDuo(state) ? '已重开本局（舰队不变，清空射击），' + sideLabel('player') + ' 先手' : '已重开本局（舰队不变，清空射击）',
+        'info',
+      )
       persist()
       emit()
     }
@@ -1552,7 +1788,32 @@
         return
       }
       clearAITimer()
-      setMessage('你已投降，本局结束', 'bad')
+      if (isDuo(state)) {
+        setMessage(sideLabel(result.side) + ' 投降，' + sideLabel(state.winner) + ' 获胜', 'bad')
+      } else {
+        setMessage('你已投降，本局结束', 'bad')
+      }
+      persist()
+      emit()
+    }
+
+    function switchMode(mode) {
+      if (MODES.indexOf(mode) < 0) return
+      if ((state.mode === 'duo' ? 'duo' : 'ai') === mode) return
+      clearAITimer()
+      const previous = state
+      state = newGameState(randomSeed(), mode)
+      state.allowAdjacent = previous.allowAdjacent === true
+      state.difficulty = previous.difficulty
+      hover = null
+      lastShot = null
+      message = ''
+      messageTone = 'info'
+      if (messageTimer) {
+        clearTimeout(messageTimer)
+        messageTimer = null
+      }
+      setMessage(mode === 'duo' ? '已切换到双人：玩家 A 先布阵' : '已切换到单人：你先布阵', 'info')
       persist()
       emit()
     }
@@ -1596,6 +1857,7 @@
       try {
         if (!Number.isInteger(cell) || cell < 0 || cell >= CELLS) return
         if (state.phase === 'place') {
+          if (state.handoff) return
           const result = placeCurrent(state, cell, state.orientation)
           if (!result.ok) {
             setMessage(reasonText(result.reason), 'warn')
@@ -1603,8 +1865,14 @@
             return
           }
           const def = SHIP_BY_KEY[result.shipKey]
-          if (state.playerShips.length === SHIPS.length) {
-            setMessage('已放置「' + def.name + '」，布阵完成，点「开始」开战', 'good')
+          const fleet = placedShips(state)
+          if (fleet.length === SHIPS.length) {
+            setMessage(
+              isDuo(state)
+                ? '已放置「' + def.name + '」，布阵完成，点「完成布阵」'
+                : '已放置「' + def.name + '」，布阵完成，点「开始」开战',
+              'good',
+            )
           } else {
             setMessage('已放置「' + def.name + '」', 'info')
           }
@@ -1741,6 +2009,9 @@
       surrender: surrenderGame,
       setDifficulty: changeDifficulty,
       toggleAdjacent: toggleAdjacentSetting,
+      setMode: switchMode,
+      pass: passTurn,
+      acknowledge: acknowledge,
       hoverCell: hoverCell,
       clearHover: clearHover,
       // lifecycle
@@ -2010,6 +2281,30 @@
 .dshbs-overlay-title { font-size: 18px; font-weight: 700; }
 .dshbs-overlay-sub { font-size: 12px; color: var(--dsw-alias-label-secondary, #57606a); }
 .dshbs-overlay-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 2px; }
+.dshbs-curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--dsw-alias-bg-base, #ffffff);
+}
+.dshbs-curtain-card {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  text-align: center;
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px solid var(--dsw-alias-border-l1, #d0d7de);
+  background: var(--dsw-alias-bg-layer-2, #f1f3f5);
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
 .dshbs-toosmall, .dshbs-error-card {
   flex: 1 1 auto;
   display: flex;
@@ -2138,12 +2433,15 @@
             const cells = isPlayer ? view.playerCells : view.enemyCells
             const ships = isPlayer && placement ? view.shipDock : isPlayer ? view.playerShips : view.enemyShips
             const compact = layout.boardPx < 190
-            const title = isPlayer ? '你的海域' : '敌方海域'
+            const title = isPlayer
+              ? view.duo ? '我方海域' : '你的海域'
+              : view.duo ? '对方海域' : '敌方海域'
             let summary
             if (isPlayer) {
               summary = placement ? '已布阵 ' + view.placedCount + '/' + view.totalShips : '剩余 ' + view.stats.playerRemaining + '/' + view.totalShips
             } else if (view.phase === 'place') summary = '等待开战'
             else summary = '已击沉 ' + view.stats.enemySunk + '/' + view.totalShips
+            if (view.duo) summary = (isPlayer ? view.ownLabel : view.oppLabel) + ' · ' + summary
             const panelStyle = { width: layout.boardPx + PANEL_PAD * 2 + 'px' }
             const boardStyle = { width: layout.boardPx + 'px', height: layout.boardPx + 'px' }
             const cellNodes = []
@@ -2213,11 +2511,15 @@
               controls.push(button('rotate', view.layout.width < 430 ? '旋转' : '旋转 (R)'))
               controls.push(button('randomize', '随机布阵'))
               controls.push(button('place-undo', '撤销', { disabled: view.placedCount === 0 }))
-              controls.push(button('start', '开始', { primary: true, disabled: !view.canStart }))
+              controls.push(button('start', view.duo ? '完成布阵' : '开始', { primary: true, disabled: !view.canStart }))
             } else {
               controls.push(button('restart', '重开'))
               if (view.phase === 'battle') {
-                controls.push(button('surrender', '投降', { disabled: view.turn === 'enemy' }))
+                controls.push(
+                  button('surrender', '投降', {
+                    disabled: view.duo ? view.handoff !== null : view.turn === 'enemy',
+                  }),
+                )
               }
             }
             controls.push(button('new-game', '新游戏'))
@@ -2229,7 +2531,11 @@
                 { className: 'dshbs-titlewrap' },
                 h('span', { className: 'dshbs-title' }, '海战棋'),
                 view.layout.width >= 560
-                  ? h('span', { className: 'dshbs-sub' }, '10×10 海域 · 5 艘舰船 · 先击沉对方全部舰船')
+                  ? h(
+                      'span',
+                      { className: 'dshbs-sub' },
+                      view.duo ? '双人 · 同一台设备轮流 · 交棒后由对方确认' : '10×10 海域 · 5 艘舰船 · 先击沉对方全部舰船',
+                    )
                   : null,
               ),
               h('div', { className: 'dshbs-spacer' }),
@@ -2256,14 +2562,19 @@
                 label,
               )
             }
-            const children = [h('span', { key: 'label', className: 'dshbs-settings-label' }, '难度')]
-            for (let i = 0; i < DIFFICULTIES.length; i += 1) {
-              const difficulty = DIFFICULTIES[i]
-              children.push(
-                button('difficulty-' + difficulty, DIFFICULTY_LABELS[difficulty], {
-                  active: view.difficulty === difficulty,
-                }),
-              )
+            const children = [h('span', { key: 'mode-label', className: 'dshbs-settings-label' }, '模式')]
+            children.push(button('mode-ai', '单人', { active: view.mode === 'ai' }))
+            children.push(button('mode-duo', '双人', { active: view.mode === 'duo' }))
+            if (view.mode === 'ai') {
+              children.push(h('span', { key: 'label', className: 'dshbs-settings-label' }, '难度'))
+              for (let i = 0; i < DIFFICULTIES.length; i += 1) {
+                const difficulty = DIFFICULTIES[i]
+                children.push(
+                  button('difficulty-' + difficulty, DIFFICULTY_LABELS[difficulty], {
+                    active: view.difficulty === difficulty,
+                  }),
+                )
+              }
             }
             children.push(
               button('toggle-adjacent', view.allowAdjacent ? '允许相邻：开' : '允许相邻：关', {
@@ -2276,16 +2587,18 @@
                 h(
                   'span',
                   { key: 'hint', className: 'dshbs-settings-hint' },
-                  view.phase === 'place'
-                    ? '默认舰船不可相邻（含斜向），可在开始前放开'
-                    : '难度影响 AI 之后的选择；允许相邻仅在布阵阶段可调',
+                  view.duo
+                    ? '双人：同一台设备轮流，交回设备前请勿看对方海域'
+                    : view.phase === 'place'
+                      ? '默认舰船不可相邻（含斜向），可在开始前放开'
+                      : '难度影响 AI 之后的选择；允许相邻仅在布阵阶段可调',
                 ),
               )
             }
             return h('div', { className: 'dshbs-settings', 'data-dsh-settings': '' }, children)
           }
 
-          function renderStatus(view) {
+          function renderStatus(view, act) {
             const tone = view.messageTone
             const statusClass = 'dshbs-status-text' +
               (tone === 'good' ? ' is-good' : tone === 'warn' ? ' is-warn' : tone === 'bad' ? ' is-bad' : '')
@@ -2306,13 +2619,17 @@
                 view.message || '',
               ),
             ]
+            if (view.handoff === 'pass') children.push(renderPassBar(view, act))
             if (view.layout.width >= 520) {
               children.push(
                 h(
                   'span',
                   { key: 'stats', className: 'dshbs-stats' },
-                  '你 ' + view.stats.playerFired + ' 发 / 命中 ' + view.stats.playerHits +
-                    ' · 敌 ' + view.stats.enemyFired + ' 发 / 命中 ' + view.stats.enemyHits,
+                  view.duo
+                    ? 'A ' + view.stats.playerFired + ' 发 / 命中 ' + view.stats.playerHits +
+                      ' · B ' + view.stats.enemyFired + ' 发 / 命中 ' + view.stats.enemyHits
+                    : '你 ' + view.stats.playerFired + ' 发 / 命中 ' + view.stats.playerHits +
+                      ' · 敌 ' + view.stats.enemyFired + ' 发 / 命中 ' + view.stats.enemyHits,
                 ),
               )
             }
@@ -2322,22 +2639,26 @@
           function renderOverlay(view, act) {
             if (view.phase !== 'over' || !view.winner) return null
             const won = view.winner === 'player'
-            const title = won ? '胜利！' : view.endReason === 'surrender' ? '已投降' : '失败'
-            const subtitle = won ? '你击沉了敌方全部 5 艘舰船' : view.endReason === 'surrender' ? '你结束了本局，可以再来一局' : '你的舰队被全部击沉'
+            const title = view.duo
+              ? view.winner === 'player' ? '玩家 A 获胜' : '玩家 B 获胜'
+              : won ? '胜利！' : view.endReason === 'surrender' ? '已投降' : '失败'
+            const subtitle = view.duo
+              ? view.endReason === 'surrender' ? '对方投降，可以再来一局' : '对方 5 艘舰船全部被击沉'
+              : won ? '你击沉了敌方全部 5 艘舰船' : view.endReason === 'surrender' ? '你结束了本局，可以再来一局' : '你的舰队被全部击沉'
+            const statsLine = view.duo
+              ? 'A ' + view.stats.playerFired + ' 发 / 命中 ' + view.stats.playerHits +
+                ' · B ' + view.stats.enemyFired + ' 发 / 命中 ' + view.stats.enemyHits
+              : '你 ' + view.stats.playerFired + ' 发 / 命中 ' + view.stats.playerHits +
+                ' · 敌 ' + view.stats.enemyFired + ' 发 / 命中 ' + view.stats.enemyHits
             return h(
               'div',
-              { className: 'dshbs-overlay', 'data-overlay': won ? 'win' : 'lose' },
+              { className: 'dshbs-overlay', 'data-overlay': view.duo ? 'over' : won ? 'win' : 'lose' },
               h(
                 'div',
                 { className: 'dshbs-overlay-card' },
                 h('div', { className: 'dshbs-overlay-title' }, title),
                 h('div', { className: 'dshbs-overlay-sub' }, subtitle),
-                h(
-                  'div',
-                  { className: 'dshbs-overlay-sub' },
-                  '你 ' + view.stats.playerFired + ' 发 / 命中 ' + view.stats.playerHits +
-                    ' · 敌 ' + view.stats.enemyFired + ' 发 / 命中 ' + view.stats.enemyHits,
-                ),
+                h('div', { className: 'dshbs-overlay-sub' }, statsLine),
                 h(
                   'div',
                   { className: 'dshbs-overlay-actions' },
@@ -2369,6 +2690,61 @@
                   ),
                 ),
               ),
+            )
+          }
+
+          function renderHandoff(view, act) {
+            if (view.handoff !== 'curtain' || !view.handoffLabel) return null
+            const placing = view.phase === 'place'
+            return h(
+              'div',
+              { className: 'dshbs-curtain', 'data-handoff': 'curtain' },
+              h(
+                'div',
+                { className: 'dshbs-curtain-card' },
+                h('div', { className: 'dshbs-overlay-title' }, '请把设备交给 ' + view.handoffLabel),
+                h(
+                  'div',
+                  { className: 'dshbs-overlay-sub' },
+                  placing ? view.handoffLabel + ' 布阵：请不要看对方海域' : view.handoffLabel + ' 的回合：点击对方海域开火',
+                ),
+                h('div', { className: 'dshbs-overlay-sub' }, '确认后才显示你的海域'),
+                h(
+                  'div',
+                  { className: 'dshbs-overlay-actions' },
+                  h(
+                    'button',
+                    {
+                      key: 'ack',
+                      type: 'button',
+                      className: 'dshbs-btn dshbs-btn--primary',
+                      'data-action': 'ack',
+                      onClick: function () {
+                        act('ack')
+                      },
+                    },
+                    '我是 ' + view.handoffLabel + '，继续',
+                  ),
+                ),
+              ),
+            )
+          }
+
+          function renderPassBar(view, act) {
+            // Rendered inline in the status bar, never on top of the boards.
+            if (view.handoff !== 'pass') return null
+            return h(
+              'button',
+              {
+                key: 'pass',
+                type: 'button',
+                className: 'dshbs-btn dshbs-btn--primary',
+                'data-action': 'pass',
+                onClick: function () {
+                  act('pass')
+                },
+              },
+              '交给 ' + view.nextLabel + ' →',
             )
           }
 
@@ -2451,6 +2827,10 @@
                 else if (action === 'restart') game.restart()
                 else if (action === 'surrender') game.surrender()
                 else if (action === 'toggle-adjacent') game.toggleAdjacent()
+                else if (action === 'ack') game.acknowledge()
+                else if (action === 'pass') game.pass()
+                else if (action === 'mode-ai') game.setMode('ai')
+                else if (action === 'mode-duo') game.setMode('duo')
                 else if (action.indexOf('difficulty-') === 0) game.setDifficulty(action.slice('difficulty-'.length))
               } catch (actionError) {
                 try {
@@ -2484,7 +2864,7 @@
             function onKeyDown(event) {
               if (!event) return
               const key = event.key
-              if ((key === 'r' || key === 'R') && view && view.phase === 'place') {
+              if ((key === 'r' || key === 'R') && view && view.phase === 'place' && view.handoff !== 'curtain') {
                 preventDefault(event)
                 act('rotate')
               }
@@ -2496,6 +2876,8 @@
               className: 'dshbs-root',
               'data-dsh-game': GAME_ID,
               'data-phase': phase,
+              'data-mode': view ? view.mode : 'ai',
+              'data-handoff': view && view.handoff ? view.handoff : '',
               'data-turn': view ? view.turn : 'player',
               'data-winner': view && view.winner ? view.winner : '',
               tabIndex: 0,
@@ -2546,7 +2928,10 @@
             } else {
               children.push(renderHeader(view, act))
               children.push(renderSettings(view, act))
-              const bodyChildren = [renderPanel(view, 'player', act), renderPanel(view, 'enemy', act), renderOverlay(view, act)]
+              const bodyChildren = [renderPanel(view, 'player', act)]
+              if (view.showOpponentPanel) bodyChildren.push(renderPanel(view, 'enemy', act))
+              bodyChildren.push(renderOverlay(view, act))
+              bodyChildren.push(renderHandoff(view, act))
               children.push(
                 h(
                   'div',
@@ -2562,7 +2947,7 @@
                   bodyChildren,
                 ),
               )
-              children.push(renderStatus(view))
+              children.push(renderStatus(view, act))
             }
             return h('div', rootAttrs, children)
           }
@@ -2676,6 +3061,13 @@
           FLEET_CELLS: FLEET_CELLS,
           DIFFICULTIES: DIFFICULTIES.slice(),
           DIFFICULTY_LABELS: Object.assign({}, DIFFICULTY_LABELS),
+          MODES: MODES.slice(),
+          MODE_LABELS: Object.assign({}, MODE_LABELS),
+          SIDE_LABELS: Object.assign({}, SIDE_LABELS),
+          otherSide: otherSide,
+          placingSide: placingSide,
+          placedShips: placedShips,
+          viewSideOf: viewSideOf,
           clamp: clamp,
           mulberry32: mulberry32,
           randomSeed: randomSeed,
@@ -2699,6 +3091,9 @@
           restartBattle: restartBattle,
           surrender: surrender,
           fireAt: fireAt,
+          fireAtSide: fireAtSide,
+          passDevice: passDevice,
+          acknowledgeHandoff: acknowledgeHandoff,
           aiChooseCell: aiChooseCell,
           aiFire: aiFire,
           aiTurn: aiTurn,

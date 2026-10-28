@@ -70,7 +70,7 @@ try {
 
 if (pkg) {
   check(`name = ${PACKAGE_NAME}`, pkg.name === PACKAGE_NAME, pkg.name)
-  check('version = 0.1.0', pkg.version === '0.1.0', pkg.version)
+  check('version = 0.2.0', pkg.version === '0.2.0', pkg.version)
   check('private: true', pkg.private === true, pkg.private)
   check('type: module', pkg.type === 'module', pkg.type)
   check('description present (non-empty string)', typeof pkg.description === 'string' && pkg.description.length > 10)
